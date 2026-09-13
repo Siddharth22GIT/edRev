@@ -1,0 +1,21 @@
+{
+  "name": "edurev",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@11.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,magenta \"npm run dev:web\" \"npm run dev:api\"",
+    "dev:web": "npm run dev --workspace @edurev/web",
+    "dev:api": "npm run dev --workspace @edurev/api",
+    "build": "npm run build --workspace @edurev/web && npm run build --workspace @edurev/api",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "check": "npm run typecheck && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
