@@ -17,7 +17,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         </button>
         <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
           <span className="grid h-8 w-8 place-items-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">ST</span>
-          <span className="hidden text-sm font-medium text-slate-700 sm:block">Satyam</span>
+          <span className="hidden text-sm font-medium text-slate-700 sm:block">Shivam</span>
         </div>
       </div>
     </header>

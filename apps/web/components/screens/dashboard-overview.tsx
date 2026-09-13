@@ -15,7 +15,7 @@ export function DashboardOverview() {
     <div className="space-y-7">
       <PageHeader
         eyebrow="Overview"
-        title="Good afternoon, Satyam"
+        title="Good afternoon, Shivam"
         description="A focused view of learner momentum, opportunity flow, and operations health."
       />
 
