@@ -4,6 +4,18 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
 
+const roleLabels: Record<string, string> = {
+  STUDENT: "Student",
+  BID_DESK_ANALYST: "Bid Desk Analyst",
+  PROPOSAL_EDITOR: "Proposal Editor",
+  GUILD_LEAD: "Guild Lead / Mentor",
+  CELL_COORDINATOR: "Cell Coordinator",
+  FACULTY_DIRECTOR: "Faculty Director",
+  PLACEMENT_OFFICE: "Placement Office",
+  DEAN: "Dean",
+  ADMINISTRATOR: "Administrator",
+};
+
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { user, logout } = useAuth();
 
@@ -36,7 +48,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
               </span>
               <div className="hidden sm:block">
                 <p className="text-sm font-semibold leading-tight text-slate-900">{user.name}</p>
-                <p className="text-xs font-medium text-slate-500">{user.role}</p>
+                <p className="text-xs font-medium text-slate-500">{roleLabels[user.role] || user.role}</p>
               </div>
             </div>
             <button

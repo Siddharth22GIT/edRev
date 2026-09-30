@@ -11,7 +11,8 @@ const router = Router();
 
 router.get("/earnings", getEarningsHandler);
 router.post("/earnings", authenticate, submitEarningHandler);
-router.patch("/earnings/:id/verify", authenticate, requireRole("FACULTY_DIRECTOR", "ADMINISTRATOR"), verifyEarningHandler);
+router.patch("/earnings/:id/verify", authenticate, requireRole("FACULTY_DIRECTOR", "CELL_COORDINATOR", "ADMINISTRATOR"), verifyEarningHandler);
+
 router.get("/platform-accounts", getPlatformAccountsHandler);
 
 export default router;

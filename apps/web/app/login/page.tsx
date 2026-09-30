@@ -41,7 +41,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-12">
-      <div className="w-full max-w-md space-y-8 rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-2xl">
+      <div className="w-full max-w-lg space-y-8 rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-2xl">
         <div className="text-center">
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-blue-600 text-2xl font-black text-white shadow-lg shadow-blue-500/30">
             R
@@ -100,7 +100,7 @@ export default function LoginPage() {
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
             Development Quick Roles (Click to fill)
           </p>
-          <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="grid grid-cols-3 gap-2 text-xs">
             <button
               className="rounded-lg border border-slate-800 bg-slate-800/40 px-2.5 py-1.5 font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white"
               onClick={() => quickFill("student@revalanche.local")}
@@ -114,6 +114,27 @@ export default function LoginPage() {
               type="button"
             >
               Bid Desk Analyst
+            </button>
+            <button
+              className="rounded-lg border border-slate-800 bg-slate-800/40 px-2.5 py-1.5 font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white"
+              onClick={() => quickFill("editor@revalanche.local")}
+              type="button"
+            >
+              Proposal Editor
+            </button>
+            <button
+              className="rounded-lg border border-slate-800 bg-slate-800/40 px-2.5 py-1.5 font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white"
+              onClick={() => quickFill("guild@revalanche.local")}
+              type="button"
+            >
+              Guild Lead / Mentor
+            </button>
+            <button
+              className="rounded-lg border border-slate-800 bg-slate-800/40 px-2.5 py-1.5 font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white"
+              onClick={() => quickFill("coordinator@revalanche.local")}
+              type="button"
+            >
+              Cell Coordinator
             </button>
             <button
               className="rounded-lg border border-slate-800 bg-slate-800/40 px-2.5 py-1.5 font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white"
