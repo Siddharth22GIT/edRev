@@ -1,12 +1,13 @@
 import type { Request, Response } from "express";
 import {
   getStudentByIdService,
+  getStudentReadinessService,
   getStudentsService,
   getStudentTierService,
   getStudentTrainingService,
   updateStudentTierService,
+  updateTrainingModuleStatusService,
 } from "../services/student.service.js";
-
 
 const errorResponse = (res: Response, message: string, status = 400) =>
   res.status(status).json({ message });
@@ -37,6 +38,20 @@ export async function getStudentByIdHandler(req: Request, res: Response): Promis
   }
 }
 
+export async function getStudentReadinessHandler(req: Request, res: Response): Promise<void> {
+  try {
+    const id = getParam(req.params.id);
+    const readiness = await getStudentReadinessService(id);
+    if (!readiness) {
+      errorResponse(res, "Student not found.", 404);
+      return;
+    }
+    res.json({ data: readiness });
+  } catch (err: any) {
+    errorResponse(res, err.message || "Error fetching student readiness summary.", 500);
+  }
+}
+
 export async function getStudentTierHandler(req: Request, res: Response): Promise<void> {
   try {
     const id = getParam(req.params.id);
@@ -61,6 +76,25 @@ export async function getStudentTrainingHandler(req: Request, res: Response): Pr
   }
 }
 
+export async function updateTrainingModuleStatusHandler(req: Request, res: Response): Promise<void> {
+  const studentId = getParam(req.params.id);
+  const moduleId = getParam(req.params.moduleId);
+  const { status } = req.body;
+
+  if (!status || !["COMPLETED", "IN_PROGRESS", "NOT_STARTED"].includes(status)) {
+    errorResponse(res, "Valid status (COMPLETED, IN_PROGRESS, NOT_STARTED) is required.");
+    return;
+  }
+
+  try {
+    const data = await updateTrainingModuleStatusService(studentId, moduleId, status);
+    res.json({ data, message: `Training module ${moduleId} status updated to ${status}.` });
+  } catch (err: any) {
+    const statusCode = err.statusCode || 400;
+    errorResponse(res, err.message || "Failed to update training module status.", statusCode);
+  }
+}
+
 export async function updateStudentTierHandler(req: Request, res: Response): Promise<void> {
   const id = getParam(req.params.id);
   const { tier } = req.body;
@@ -74,8 +108,7 @@ export async function updateStudentTierHandler(req: Request, res: Response): Pro
     const data = await updateStudentTierService(id, tier);
     res.json({ data, message: `Student ${id} tier successfully updated to ${tier}.` });
   } catch (err: any) {
-    const status = err.statusCode || 400;
-    errorResponse(res, err.message || "Failed to update student tier.", status);
+    const statusCode = err.statusCode || 400;
+    errorResponse(res, err.message || "Failed to update student tier.", statusCode);
   }
 }
-

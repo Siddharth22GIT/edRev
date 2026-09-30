@@ -57,9 +57,19 @@
 - Preserved strict Admin-only tier control (`PATCH /api/students/:id/tier`)
 - Verified workspace with clean `npm run typecheck` and `npm run build`
 
+## WEEK 9 — Phase 4: Training, Tier Progression & Academic Safeguards (COMPLETED)
+
+- Implemented Student Readiness Summary service (`getStudentReadinessService`) aggregating student profile, academic snapshot, training progress, weekly hours, exam blackout, and safeguard checks.
+- Completed Training Module persistence and progress tracking (`updateTrainingModuleStatusService` & `PATCH /api/students/:id/training/:moduleId`).
+- Enforced Institutional Safeguard rule: Training module completion updates readiness indicators as supporting information, but **DOES NOT** automatically alter official student tiers.
+- Enforced strict Admin-Only Tier Control (`PATCH /api/students/:id/tier` restricted to `ADMINISTRATOR` with HTTP 403 Forbidden for all non-admin roles).
+- Updated student screens (`StudentDetailScreen` & `StudentTierScreen`) with real-time readiness dashboard, training module status toggles, and Administrator tier controls.
+- Integrated hourly cap override permissions (`FACULTY_DIRECTOR`, `CELL_COORDINATOR`, `ADMINISTRATOR`).
+- Maintained Phase 3 Bid Desk allocation, duplicate bid protection, persistent SLA, and MongoDB persistence.
+- Verified workspace with clean `npm run typecheck` and `npm run build`.
+
 ## WEEK 9 — Upcoming Phases
 
-- Phase 4: Training & Tier Persistence Engine
 - Phase 5: Earnings Verification & Ledger Pipeline
 - Phase 6: Academic Safeguards Persistence & Strict Enforcement
 - Phase 7: Dynamic Database Analytics & Reporting

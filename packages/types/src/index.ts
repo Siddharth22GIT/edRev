@@ -21,6 +21,7 @@ export interface AcademicSnapshot { studentId:string; cgpa:number; requiredCgpa:
 export interface HourLog { studentId:string; period:string; allowedHours:number; loggedHours:number; remainingHours:number; status:HourStatus; overridden?:boolean; }
 export interface BlackoutPeriod { id:string; title:string; startDate:string; endDate:string; }
 export interface SafeguardCheck { studentId:string; tierEligible:boolean; cgpaEligible:boolean; hourEligible:boolean; blackoutEligible:boolean; complianceEligible:boolean; eligible:boolean; reasons:string[]; }
+export interface StudentReadinessSummary { student: Student; academic: AcademicSnapshot | null; training: { modules: TrainingModule[]; completedCount: number; totalCount: number; progressPercentage: number; }; hours: HourLog | null; blackoutActive: boolean; safeguardCheck: SafeguardCheck; }
 export interface DashboardMetrics { activeStudents:number; opportunityPipeline:number; monthlyEarnings:number; completionRate:number; totalBids:number; allocations:number; verifiedEarnings:number; complianceRate:number; }
 export interface AnalyticsSnapshot { placementRate:number; proposalWinRate:number; averageResponseHours:number; learnerSatisfaction:number; weeklyActivity:{label:string;value:number}[]; studentsByTier:{tier:Tier;count:number}[]; }
 export interface Proposal { id:string; title:string; studentName:string; opportunityId:string; author:string; status:"DRAFT"|"IN_REVIEW"|"APPROVED"|"SUBMITTED"; reviewStatus:"PENDING"|"APPROVED"; version:number; submittedAt:string|null; value:number; }

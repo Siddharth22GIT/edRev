@@ -94,11 +94,12 @@ export async function getBlackoutPeriodsService(): Promise<BlackoutPeriod[]> {
 }
 
 export async function overrideHourCapService(studentId: string, role: string, reason: string): Promise<HourLog> {
-  if (!reason || role !== "FACULTY_DIRECTOR") {
-    const err: any = new Error("A Faculty Director reason is required.");
+  if (!reason || !["FACULTY_DIRECTOR", "CELL_COORDINATOR", "ADMINISTRATOR"].includes(role)) {
+    const err: any = new Error("An authorized Faculty Director or Cell Coordinator reason is required.");
     err.statusCode = 400;
     throw err;
   }
+
 
   if (isDbConnected()) {
     const log = await HourLogModel.findOne({ studentId });
