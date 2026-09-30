@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
 
 export interface NavigationItem {
   href: string;
@@ -30,14 +31,15 @@ interface SidebarProps {
 
 export function Sidebar({ open, onNavigate }: SidebarProps) {
   const pathname = usePathname();
+  const { user } = useAuth();
 
   return (
     <aside className={`fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col border-r border-slate-800 bg-slate-950 px-3 py-5 text-slate-300 transition-transform lg:translate-x-0 ${open ? "translate-x-0" : ""}`}>
-      <Link className="mb-9 flex items-center gap-3 px-3" href="/dashboard" onClick={onNavigate}>
-        <span className="grid h-9 w-9 place-items-center rounded-lg bg-blue-600 text-lg font-bold text-white">E</span>
+      <Link className="mb-8 flex items-center gap-3 px-3" href="/dashboard" onClick={onNavigate}>
+        <span className="grid h-9 w-9 place-items-center rounded-lg bg-blue-600 text-lg font-bold text-white shadow-md shadow-blue-500/20">R</span>
         <span>
-          <span className="block text-base font-bold tracking-tight text-white">EduRev</span>
-          <span className="block text-xs text-slate-400">Operations workspace</span>
+          <span className="block text-base font-bold tracking-tight text-white">REVALANCHE</span>
+          <span className="block text-xs text-slate-400">Student Earning OS</span>
         </span>
       </Link>
 
@@ -62,9 +64,18 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
         <Link className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${pathname === "/settings" ? "bg-blue-600 text-white" : "hover:bg-slate-900 hover:text-white"}`} href="/settings" onClick={onNavigate}>
           <span aria-hidden="true">⚙</span> Settings
         </Link>
-        <div className="mt-4 rounded-lg bg-slate-900 px-3 py-3 text-xs leading-5 text-slate-400">
-          <span className="font-semibold text-slate-200">Week 5 foundation</span><br />
-          Static data is ready to be replaced by the API.
+        <div className="mt-4 rounded-lg bg-slate-900/90 p-3 text-xs leading-5 text-slate-400">
+          <span className="font-semibold text-slate-200">Session context</span><br />
+          {user ? (
+            <>
+              <span className="text-blue-400">{user.name}</span><br />
+              <span className="font-medium text-slate-300">Role: {user.role}</span>
+            </>
+          ) : (
+            <Link className="font-semibold text-blue-400 hover:underline" href="/login">
+              Click here to sign in →
+            </Link>
+          )}
         </div>
       </div>
     </aside>

@@ -23,4 +23,7 @@ export interface AnalyticsSnapshot { placementRate:number; proposalWinRate:numbe
 export interface Proposal { id:string; title:string; studentName:string; opportunityId:string; author:string; status:"DRAFT"|"IN_REVIEW"|"APPROVED"|"SUBMITTED"; reviewStatus:"PENDING"|"APPROVED"; version:number; submittedAt:string|null; value:number; }
 export interface Safeguard { id:string; name:string; description:string; status:"healthy"|"attention"|"blocked"; owner:string; lastCheckedAt:string; }
 export interface SettingsSummary { organizationName:string; notificationEmail:string; weeklyDigestEnabled:boolean; timezone:string; }
+export interface User { id:string; name:string; email:string; passwordHash?:string; role:Role; studentId?:string; createdAt?:string; updatedAt?:string; }
+export interface AuthResponse { user:Omit<User,"passwordHash">; token:string; }
 export interface ApiError { message:string; }
+

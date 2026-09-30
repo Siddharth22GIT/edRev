@@ -1,18 +1,21 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/lib/auth-context";
 
 export const metadata: Metadata = {
   title: {
-    default: "EduRev",
-    template: "%s · EduRev",
+    default: "REVALANCHE",
+    template: "%s · REVALANCHE",
   },
-  description: "EduRev operations workspace",
+  description: "REVALANCHE Student Earning & Venture Tracking Operations OS",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

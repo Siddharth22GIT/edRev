@@ -12,32 +12,31 @@ The initial contracts are in `packages/types/src/index.ts`. They model a read-or
 | `Proposal` | `id`, studentName, opportunityId, status, value | The pre-delivery work submission record. |
 | `Safeguard` | `id`, name, owner, status, lastCheckedAt | Operational control and health signal. |
 
-## Phase 2–5 entities
+# Data Model
 
-`Bid`, `Allocation`, `EarningsEntry`, `PlatformAccount`, `TrainingModule`, `TierSummary`, `AcademicSnapshot`, `HourLog`, `BlackoutPeriod`, `Proposal`, and `SafeguardCheck` are now represented in shared TypeScript contracts. A Student has training, tier, academic, hour-log, earnings, and platform-account records; an Opportunity has bids and at most one allocation. Earnings preserve original amount/currency and historical exchange rate. Platform records deliberately exclude passwords, tokens, API keys, and credentials.
+The baseline TypeScript contracts are defined in `packages/types/src/index.ts`. In Week 9 Phase 1, Mongoose schemas and models were introduced in `apps/api/src/models/index.ts` to provide persistent backend storage.
 
-## Supporting read models
+## Core Entities & Persistence Schemas
 
-- `DashboardMetrics`: active students, opportunity pipeline, monthly earnings, completion rate.
-- `EarningsSnapshot`: a period-level gross/fee/net summary.
-- `AnalyticsSnapshot`: dashboard KPIs plus a weekly activity time series.
-- `SettingsSummary`: displayable organization preferences.
-- `ApiError`: stable `{ message }` error payload.
+| Entity | Key Fields | Notes & Database Constraints |
+| --- | --- | --- |
+| `Student` | `id`, name, email, program, tier, status, progress, cgpa, earnings | Learner profile and progression snapshot. |
+| `Opportunity` | `id`, company, project, category, budget, status, deadline, slaDeadline | Stage-gated client work item. |
+| `Bid` | `id`, opportunityId, studentId, proposedAmount, status | Learner work proposal. **Database compound unique index:** `unique(opportunityId, studentId)` returning HTTP 409 on duplicate. |
+| `Allocation` | `opportunityId`, studentId, allocatedBy, allocatedAt, slaStartAt, slaDeadline, slaStatus | Assigned work record with persistent SLA window (`ACTIVE`, `AT_RISK`, `COMPLETED`, `OVERDUE`, `CANCELLED`). |
+| `EarningsEntry` | `id`, studentId, platformName, originalAmount, originalCurrency, exchangeRate, convertedAmount, verificationStatus | Learner freelancing earnings record. Strictly excludes login credentials/passwords. Preserves historical FX exchange rate. |
+| `PlatformAccount` | `id`, studentId, platform, accountIdentifier, accountStatus, verificationStatus | Freelancing platform identity record without storing authentication credentials. |
+| `TrainingModule` | `id`, studentId, title, status, completionPercentage | Learner skill development progression. |
+| `AcademicSnapshot` | `studentId`, cgpa, requiredCgpa, cgpaStatus, complianceStatus | Institutional academic eligibility safeguards. |
+| `HourLog` | `studentId`, period, allowedHours, loggedHours, status, overridden | Safeguard for student weekly work-hour cap. |
+| `BlackoutPeriod` | `id`, title, startDate, endDate | Academic exam blackout windows during which new work is blocked. |
+| `Proposal` | `id`, title, studentName, opportunityId, status, reviewStatus, version, value | Document proposal draft and submission tracking. |
+| `Safeguard` | `id`, name, description, status, owner, lastCheckedAt | Operational health controls. |
+| `Settings` | `id` ("default"), organizationName, notificationEmail, timezone | System configuration defaults. |
 
-## Relationships
+## Uniqueness & Safeguard Rules
+1. **Duplicate Bid Protection**: Enforced at Mongoose schema level (`unique({ opportunityId: 1, studentId: 1 })`). Express controller catches code `11000` and emits `409 Conflict`.
+2. **SLA Window**: `slaStartAt` and `slaDeadline` timestamps are persisted on `Allocation`. SLA status is derived dynamically from timestamps.
+3. **No Platform Earnings Commission**: Individual student earnings are never taxed by the institution.
+4. **Faculty Override**: Hour-cap overrides require `FACULTY_DIRECTOR` authority and audit reasoning.
 
-```text
-Student 1 ─── 1 TierSummary
-Student 1 ─── * Proposal
-Opportunity 1 ─── * Proposal
-```
-
-The mock proposal stores `studentName` for display convenience while using `opportunityId` as its relationship key. A future persistent model should use `studentId`, `opportunityId`, audit timestamps, and ownership fields.
-
-## Enumerations
-
-- Opportunity: `new`, `reviewing`, `shortlisted`, `closed`
-- Student: `active`, `at-risk`, `paused`
-- Safeguard: `healthy`, `attention`, `blocked`
-- Proposal: `draft`, `submitted`, `accepted`, `declined`
-- Tier: `Foundation`, `Growth`, `Pro`
