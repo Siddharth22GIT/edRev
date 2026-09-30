@@ -1,13 +1,14 @@
-import type { Allocation, Bid, Opportunity } from "@edurev/types";
+import type { Allocation, Bid, Opportunity, SlaStatus } from "@edurev/types";
 import {
   allocate as mockAllocate,
+  bids as mockBids,
   getBids as mockGetBids,
   getOpportunity as mockGetOpportunity,
   opportunities as mockOpportunities,
   submitBid as mockSubmitBid,
 } from "@edurev/mock-data";
 import { isDbConnected } from "../config/db.js";
-import { AllocationModel, BidModel, OpportunityModel } from "../models/index.js";
+import { AllocationModel, BidModel, OpportunityModel, StudentModel } from "../models/index.js";
 import { checkSafeguardsService } from "./safeguard.service.js";
 
 export async function getOpportunitiesService(): Promise<Opportunity[]> {
@@ -32,6 +33,22 @@ export async function getBidsForOpportunityService(opportunityId: string): Promi
     return bids.map((item) => stripMongoFields<Bid>(item));
   }
   return mockGetBids(opportunityId);
+}
+
+export async function getAllocationForOpportunityService(opportunityId: string): Promise<Allocation | null> {
+  if (isDbConnected()) {
+    const allocation = await AllocationModel.findOne({ opportunityId }).lean();
+    if (allocation) {
+      const alloc = stripMongoFields<Allocation>(allocation);
+      // Compute dynamic SLA status based on deadline
+      if (alloc.slaDeadline && alloc.slaStatus === "ACTIVE" && new Date() > new Date(alloc.slaDeadline)) {
+        alloc.slaStatus = "OVERDUE";
+      }
+      return alloc;
+    }
+    return null;
+  }
+  return null;
 }
 
 export interface SubmitBidInput {
@@ -94,9 +111,10 @@ export async function submitBidService(input: SubmitBidInput): Promise<Bid> {
 }
 
 export async function allocateOpportunityService(opportunityId: string, studentId: string, allocatedBy: string): Promise<Allocation> {
+  // Check academic and hour safeguards
   const check = await checkSafeguardsService(studentId, opportunityId);
   if (!check.eligible) {
-    const err: any = new Error(check.reasons.join(" "));
+    const err: any = new Error(`Allocation blocked: ${check.reasons.join(". ")}`);
     err.statusCode = 400;
     throw err;
   }
@@ -109,36 +127,62 @@ export async function allocateOpportunityService(opportunityId: string, studentI
       throw err;
     }
 
+    const student = await StudentModel.findOne({ id: studentId });
+    if (!student) {
+      const err: any = new Error("Student not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    // Verify bid exists
+    const bid = await BidModel.findOne({ opportunityId, studentId });
+    if (bid) {
+      bid.status = "ALLOCATED";
+      await bid.save();
+    }
+
     const now = new Date();
     const slaDeadlineDate = opp.slaDeadline ? new Date(opp.slaDeadline) : new Date(now.getTime() + 72 * 3600 * 1000);
 
-    const newAllocation = {
-      opportunityId,
-      studentId,
-      allocatedBy,
-      allocatedAt: now.toISOString(),
-      status: "ALLOCATED" as const,
-      slaStartAt: now.toISOString(),
-      slaDeadline: slaDeadlineDate.toISOString(),
-      slaStatus: "ACTIVE" as const,
-    };
+    // Create or update persistent Allocation record
+    let allocation = await AllocationModel.findOne({ opportunityId });
+    if (allocation) {
+      allocation.studentId = studentId;
+      allocation.allocatedBy = allocatedBy;
+      allocation.allocatedAt = now.toISOString();
+      allocation.slaStartAt = now.toISOString();
+      allocation.slaDeadline = slaDeadlineDate.toISOString();
+      allocation.slaStatus = "ACTIVE";
+      allocation.status = "ALLOCATED";
+      await allocation.save();
+    } else {
+      allocation = await AllocationModel.create({
+        opportunityId,
+        studentId,
+        allocatedBy,
+        allocatedAt: now.toISOString(),
+        status: "ALLOCATED",
+        slaStartAt: now.toISOString(),
+        slaDeadline: slaDeadlineDate.toISOString(),
+        slaStatus: "ACTIVE",
+      });
+    }
 
-    await AllocationModel.create(newAllocation);
-
+    // Update opportunity status
     opp.status = "ALLOCATED";
     opp.allocatedStudentId = studentId;
     await opp.save();
 
-    return {
-      opportunityId,
-      studentId,
-      allocatedBy,
-      allocatedAt: now.toISOString(),
-      status: "ALLOCATED",
-    };
+    return stripMongoFields<Allocation>(allocation.toObject());
   }
 
-  return mockAllocate(opportunityId, studentId, allocatedBy);
+  // Fallback memory allocation
+  const alloc = mockAllocate(opportunityId, studentId, allocatedBy);
+  const bid = mockBids.find((b) => b.opportunityId === opportunityId && b.studentId === studentId);
+  if (bid) {
+    bid.status = "ALLOCATED";
+  }
+  return alloc;
 }
 
 function stripMongoFields<T>(obj: any): T {

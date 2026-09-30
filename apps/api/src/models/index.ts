@@ -78,7 +78,8 @@ const bidSchema = new Schema<Bid>(
     estimatedCompletionTime: { type: String, required: true },
     message: { type: String, required: true },
     relevantSkills: { type: String, required: true },
-    status: { type: String, enum: ["SUBMITTED", "WITHDRAWN"], default: "SUBMITTED" },
+    status: { type: String, enum: ["SUBMITTED", "SHORTLISTED", "REJECTED", "ALLOCATED", "WITHDRAWN"], default: "SUBMITTED" },
+
     createdAt: { type: String, required: true },
   },
   { timestamps: true }

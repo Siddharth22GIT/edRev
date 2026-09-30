@@ -2,7 +2,8 @@ export type Role = "STUDENT" | "BID_DESK_ANALYST" | "PROPOSAL_EDITOR" | "GUILD_L
 export type OpportunityStatus = "OPEN" | "UNDER_REVIEW" | "ALLOCATED" | "CLOSED";
 export type StudentStatus = "ACTIVE" | "INACTIVE";
 export type Tier = "TIER_1" | "TIER_2" | "TIER_3" | "TIER_4";
-export type BidStatus = "SUBMITTED" | "WITHDRAWN";
+export type BidStatus = "SUBMITTED" | "SHORTLISTED" | "REJECTED" | "ALLOCATED" | "WITHDRAWN";
+export type SlaStatus = "ACTIVE" | "AT_RISK" | "COMPLETED" | "OVERDUE" | "CANCELLED";
 export type VerificationStatus = "PENDING" | "VERIFIED" | "REJECTED";
 export type HourStatus = "NORMAL" | "WARNING" | "BLOCKED";
 export type ComplianceStatus = "COMPLIANT" | "WARNING" | "NON_COMPLIANT";
@@ -11,7 +12,9 @@ export interface Student { id:string; name:string; email:string; avatarInitials:
 export interface TierSummary { studentId:string; currentTier:Tier; nextTier:Tier|null; progressToNextTier:number; requirements:{label:string;completed:boolean}[]; completedTraining:number; }
 export interface TrainingModule { id:string; title:string; description:string; status:"COMPLETED"|"IN_PROGRESS"|"NOT_STARTED"; completionPercentage:number; }
 export interface Bid { id:string; opportunityId:string; studentId:string; proposedAmount:number; estimatedCompletionTime:string; message:string; relevantSkills:string; status:BidStatus; createdAt:string; }
-export interface Allocation { opportunityId:string; studentId:string; allocatedBy:string; allocatedAt:string; status:"ALLOCATED"; }
+export interface Allocation { opportunityId:string; studentId:string; allocatedBy:string; allocatedAt:string; status:"ALLOCATED"|"ACTIVE"|"COMPLETED"|"CANCELLED"; slaStartAt?:string; slaDeadline?:string; slaStatus?:SlaStatus; }
+
+
 export interface EarningsEntry { id:string; studentId:string; platformName:string; originalAmount:number; originalCurrency:string; exchangeRate:number; convertedAmount:number; convertedCurrency:string; earningDate:string; verificationStatus:VerificationStatus; evidence:string; evidenceStatus:"AVAILABLE"|"MISSING"; createdAt:string; verifiedBy?:string; verifiedAt?:string; }
 export interface PlatformAccount { id:string; studentId:string; platform:string; accountIdentifier:string; accountStatus:"ACTIVE"|"INACTIVE"; verificationStatus:VerificationStatus; }
 export interface AcademicSnapshot { studentId:string; cgpa:number; requiredCgpa:number; cgpaStatus:"ELIGIBLE"|"RESTRICTED"; complianceStatus:ComplianceStatus; }

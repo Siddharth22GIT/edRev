@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import {
   allocateOpportunityService,
+  getAllocationForOpportunityService,
   getBidsForOpportunityService,
   getOpportunitiesService,
   getOpportunityByIdService,
@@ -46,11 +47,29 @@ export async function getBidsForOpportunityHandler(req: Request, res: Response):
   }
 }
 
+export async function getAllocationForOpportunityHandler(req: Request, res: Response): Promise<void> {
+  try {
+    const id = getParam(req.params.id);
+    const allocation = await getAllocationForOpportunityService(id);
+    res.json({ data: allocation });
+  } catch (err: any) {
+    errorResponse(res, err.message || "Error fetching allocation.", 500);
+  }
+}
+
 export async function submitBidHandler(req: Request, res: Response): Promise<void> {
-  const { studentId, proposedAmount, estimatedCompletionTime, message, relevantSkills } = req.body;
+  const { proposedAmount, estimatedCompletionTime, message, relevantSkills } = req.body;
   const opportunityId = getParam(req.params.id);
 
-  if (!studentId || !proposedAmount || !estimatedCompletionTime || !message || !relevantSkills) {
+  // Authenticated student identity enforcement (Do NOT trust frontend body studentId override)
+  const studentId = req.user?.studentId || req.user?.id || req.body.studentId;
+
+  if (!studentId) {
+    errorResponse(res, "Authenticated student identity missing.", 401);
+    return;
+  }
+
+  if (!proposedAmount || !estimatedCompletionTime || !message || !relevantSkills) {
     errorResponse(res, "All bid fields are required.");
     return;
   }
@@ -72,8 +91,9 @@ export async function submitBidHandler(req: Request, res: Response): Promise<voi
 }
 
 export async function allocateOpportunityHandler(req: Request, res: Response): Promise<void> {
-  const { studentId, allocatedBy = "BID_DESK_ANALYST" } = req.body;
+  const { studentId } = req.body;
   const opportunityId = getParam(req.params.id);
+  const allocatedBy = req.user?.name || req.user?.role || req.body.allocatedBy || "BID_DESK_ANALYST";
 
   if (!studentId) {
     errorResponse(res, "studentId is required.");

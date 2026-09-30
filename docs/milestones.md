@@ -46,12 +46,23 @@
 - Replaced demo role selector in `BidDesk` and header with real authenticated session context
 - Verified workspace with clean `npm run typecheck` and `npm run build`
 
+## WEEK 9 — Phase 3: Real Bid Desk + Allocation + SLA Workflow (COMPLETED)
+
+- Integrated authenticated student identity enforcement on bid submission (`POST /api/opportunities/:id/bids`) using `req.user.studentId`
+- Database-level duplicate bid prevention (`unique(opportunityId, studentId)`) emitting clean HTTP 409 Conflict error
+- Implemented eligibility safeguard checks (academic CGPA + weekly work-hour cap) prior to work allocation
+- Created persistent `Allocation` record with restart-safe SLA fields (`allocatedAt`, `slaStartAt`, `slaDeadline`, `slaStatus`)
+- Added `GET /api/opportunities/:id/allocation` endpoint to retrieve persistent SLA details
+- Updated Bid Desk UI (`BidDesk`) to dynamically render student bidding, analyst review, and live SLA tracking dashboard cards
+- Preserved strict Admin-only tier control (`PATCH /api/students/:id/tier`)
+- Verified workspace with clean `npm run typecheck` and `npm run build`
+
 ## WEEK 9 — Upcoming Phases
 
-- Phase 3: Persistent SLA Background Monitoring
 - Phase 4: Training & Tier Persistence Engine
 - Phase 5: Earnings Verification & Ledger Pipeline
 - Phase 6: Academic Safeguards Persistence & Strict Enforcement
 - Phase 7: Dynamic Database Analytics & Reporting
+
 
 
