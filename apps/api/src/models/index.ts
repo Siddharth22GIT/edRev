@@ -128,6 +128,7 @@ const earningsEntrySchema = new Schema<EarningsEntry>(
     createdAt: { type: String, required: true },
     verifiedBy: { type: String },
     verifiedAt: { type: String },
+    rejectionReason: { type: String },
   },
   { timestamps: true }
 );
