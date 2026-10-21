@@ -15,7 +15,8 @@ export interface Bid { id:string; opportunityId:string; studentId:string; propos
 export interface Allocation { opportunityId:string; studentId:string; allocatedBy:string; allocatedAt:string; status:"ALLOCATED"|"ACTIVE"|"COMPLETED"|"CANCELLED"; slaStartAt?:string; slaDeadline?:string; slaStatus?:SlaStatus; }
 
 
-export interface EarningsEntry { id:string; studentId:string; platformName:string; originalAmount:number; originalCurrency:string; exchangeRate:number; convertedAmount:number; convertedCurrency:string; earningDate:string; verificationStatus:VerificationStatus; evidence:string; evidenceStatus:"AVAILABLE"|"MISSING"; createdAt:string; verifiedBy?:string; verifiedAt?:string; }
+export interface EarningsEntry { id:string; studentId:string; platformName:string; originalAmount:number; originalCurrency:string; exchangeRate:number; convertedAmount:number; convertedCurrency:string; earningDate:string; verificationStatus:VerificationStatus; evidence:string; evidenceStatus:"AVAILABLE"|"MISSING"; createdAt:string; verifiedBy?:string; verifiedAt?:string; rejectionReason?:string; }
+export interface EarningsSummary { studentId?:string; totalSubmitted:number; totalVerified:number; totalPending:number; totalRejected:number; count:number; verifiedCount:number; pendingCount:number; rejectedCount:number; currency:string; }
 export interface PlatformAccount { id:string; studentId:string; platform:string; accountIdentifier:string; accountStatus:"ACTIVE"|"INACTIVE"; verificationStatus:VerificationStatus; }
 export interface AcademicSnapshot { studentId:string; cgpa:number; requiredCgpa:number; cgpaStatus:"ELIGIBLE"|"RESTRICTED"; complianceStatus:ComplianceStatus; }
 export interface HourLog { studentId:string; period:string; allowedHours:number; loggedHours:number; remainingHours:number; status:HourStatus; overridden?:boolean; }

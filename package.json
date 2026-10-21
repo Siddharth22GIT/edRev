@@ -12,6 +12,7 @@
     "dev:web": "npm run dev --workspace @edurev/web",
     "dev:api": "npm run dev --workspace @edurev/api",
     "build": "npm run build --workspace @edurev/web && npm run build --workspace @edurev/api",
+    "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "check": "npm run typecheck && npm run build"
   },
