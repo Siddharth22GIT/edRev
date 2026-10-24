@@ -1,8 +1,8 @@
-import type { EarningsEntry, PlatformAccount } from "@edurev/types";
+import type { EarningsEntry, EarningsSummary, PlatformAccount } from "@edurev/types";
 import {
   earnings as mockEarnings,
   platformAccounts as mockPlatformAccounts,
-  verifyEarning as mockVerifyEarning,
+  students as mockStudents,
 } from "@edurev/mock-data";
 import { isDbConnected } from "../config/db.js";
 import { EarningsEntryModel, PlatformAccountModel, StudentModel } from "../models/index.js";
@@ -20,41 +20,7 @@ export async function getEarningsService(studentId?: string): Promise<EarningsEn
     const list = await EarningsEntryModel.find(query).sort({ createdAt: -1 }).lean();
     return list.map((item) => stripMongoFields<EarningsEntry>(item));
   }
-  return studentId ? mockEarnings.filter((x) => x.studentId === studentId) : mockEarnings;
-}
-
-export interface StudentEarningsSummary {
-  studentId: string;
-  totalVerified: number;
-  totalPending: number;
-  totalRejected: number;
-  entries: EarningsEntry[];
-}
-
-export async function getStudentEarningsSummaryService(studentId: string): Promise<StudentEarningsSummary> {
-  const entries = await getEarningsService(studentId);
-
-  let totalVerified = 0;
-  let totalPending = 0;
-  let totalRejected = 0;
-
-  for (const item of entries) {
-    if (item.verificationStatus === "VERIFIED") {
-      totalVerified += item.convertedAmount;
-    } else if (item.verificationStatus === "PENDING") {
-      totalPending += item.convertedAmount;
-    } else if (item.verificationStatus === "REJECTED") {
-      totalRejected += item.convertedAmount;
-    }
-  }
-
-  return {
-    studentId,
-    totalVerified: Number(totalVerified.toFixed(2)),
-    totalPending: Number(totalPending.toFixed(2)),
-    totalRejected: Number(totalRejected.toFixed(2)),
-    entries,
-  };
+  return studentId ? mockEarnings.filter((x) => x.studentId === studentId) : [...mockEarnings];
 }
 
 export interface CreateEarningInput {
@@ -144,43 +110,135 @@ export async function verifyEarningService(
       throw err;
     }
 
+    if (earning.verificationStatus === "VERIFIED") {
+      const err: any = new Error("Earning has already been verified.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    if (earning.verificationStatus === "REJECTED") {
+      const err: any = new Error("Earning has already been rejected.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    if (earning.verificationStatus !== "PENDING") {
+      const err: any = new Error(`Earning has already been ${earning.verificationStatus.toLowerCase()}.`);
+      err.statusCode = 400;
+      throw err;
+    }
+
     earning.verificationStatus = status;
     earning.verifiedBy = verifiedBy;
     earning.verifiedAt = new Date().toISOString();
     if (status === "REJECTED") {
-      earning.rejectionReason = rejectionReason || "Evidence unverified or incomplete.";
+      earning.rejectionReason = rejectionReason || "No rejection reason provided";
+    } else {
+      earning.rejectionReason = undefined;
     }
-
     await earning.save();
 
-    // Recalculate student total verified earnings on StudentModel
-    const student = await StudentModel.findOne({ id: earning.studentId });
-    if (student) {
-      const allVerified = await EarningsEntryModel.find({
-        studentId: earning.studentId,
-        verificationStatus: "VERIFIED",
-      }).lean();
-      const verifiedTotal = allVerified.reduce((acc: number, curr: any) => acc + (curr.convertedAmount || 0), 0);
-      student.earnings = Number(verifiedTotal.toFixed(2));
-      await student.save();
+    if (status === "VERIFIED") {
+      const student = await StudentModel.findOne({ id: earning.studentId });
+      if (student) {
+        // Calculate true total verified earnings from all verified entries to prevent double-counting
+        const allVerified = await EarningsEntryModel.find({
+          studentId: earning.studentId,
+          verificationStatus: "VERIFIED",
+        }).lean();
+        const verifiedTotal = allVerified.reduce((sum, item) => sum + (item.convertedAmount || 0), 0);
+        student.earnings = verifiedTotal;
+        await student.save();
+      }
     }
 
     return stripMongoFields<EarningsEntry>(earning.toObject());
   }
 
-  const res = mockVerifyEarning(id, verifiedBy, status);
-  if (status === "REJECTED") {
-    res.rejectionReason = rejectionReason || "Evidence unverified.";
+  const earning = mockEarnings.find((x) => x.id === id);
+  if (!earning) {
+    const err: any = new Error("Earning not found.");
+    err.statusCode = 404;
+    throw err;
   }
-  return res;
+
+  if (earning.verificationStatus === "VERIFIED") {
+    const err: any = new Error("Earning has already been verified.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (earning.verificationStatus === "REJECTED") {
+    const err: any = new Error("Earning has already been rejected.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  earning.verificationStatus = status;
+  earning.verifiedBy = verifiedBy;
+  earning.verifiedAt = new Date().toISOString();
+  if (status === "REJECTED") {
+    earning.rejectionReason = rejectionReason || "No rejection reason provided";
+  } else {
+    earning.rejectionReason = undefined;
+    const student = mockStudents.find((s) => s.id === earning.studentId);
+    if (student) {
+      const verifiedTotal = mockEarnings
+        .filter((e) => e.studentId === earning.studentId && e.verificationStatus === "VERIFIED")
+        .reduce((sum, e) => sum + (e.convertedAmount || 0), 0);
+      student.earnings = verifiedTotal;
+    }
+  }
+
+  return earning;
 }
 
-export async function getPlatformAccountsService(): Promise<PlatformAccount[]> {
+export async function getEarningsSummaryService(studentId?: string): Promise<EarningsSummary> {
+  const list = await getEarningsService(studentId);
+  let totalSubmitted = 0;
+  let totalVerified = 0;
+  let totalPending = 0;
+  let totalRejected = 0;
+  let verifiedCount = 0;
+  let pendingCount = 0;
+  let rejectedCount = 0;
+
+  for (const item of list) {
+    const amt = item.convertedAmount || 0;
+    totalSubmitted += amt;
+    if (item.verificationStatus === "VERIFIED") {
+      totalVerified += amt;
+      verifiedCount++;
+    } else if (item.verificationStatus === "REJECTED") {
+      totalRejected += amt;
+      rejectedCount++;
+    } else {
+      totalPending += amt;
+      pendingCount++;
+    }
+  }
+
+  return {
+    studentId,
+    totalSubmitted: Number(totalSubmitted.toFixed(2)),
+    totalVerified: Number(totalVerified.toFixed(2)),
+    totalPending: Number(totalPending.toFixed(2)),
+    totalRejected: Number(totalRejected.toFixed(2)),
+    count: list.length,
+    verifiedCount,
+    pendingCount,
+    rejectedCount,
+    currency: "INR",
+  };
+}
+
+export async function getPlatformAccountsService(studentId?: string): Promise<PlatformAccount[]> {
   if (isDbConnected()) {
-    const list = await PlatformAccountModel.find().lean();
+    const query = studentId ? { studentId } : {};
+    const list = await PlatformAccountModel.find(query).lean();
     return list.map((item) => stripMongoFields<PlatformAccount>(item));
   }
-  return mockPlatformAccounts;
+  return studentId ? mockPlatformAccounts.filter((x) => x.studentId === studentId) : [...mockPlatformAccounts];
 }
 
 function stripMongoFields<T>(obj: any): T {
