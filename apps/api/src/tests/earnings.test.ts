@@ -77,6 +77,9 @@ describe("Earnings Security & Integrity Suite", () => {
     const connected = await connectDB();
     if (connected) {
       await seedDatabaseIfEmpty();
+      await EarningsEntryModel.deleteMany({
+        platformName: { $in: ["Fiverr Freelance", "Toptal", "Upwork Global"] },
+      });
     }
     const app = createApp();
     await new Promise<void>((resolve) => {
@@ -93,6 +96,11 @@ describe("Earnings Security & Integrity Suite", () => {
   after(async () => {
     if (server) {
       await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+    if (isDbConnected()) {
+      await EarningsEntryModel.deleteMany({
+        platformName: { $in: ["Fiverr Freelance", "Toptal", "Upwork Global"] },
+      });
     }
     const mongoose = await import("mongoose");
     await mongoose.default.disconnect();
