@@ -68,11 +68,36 @@
 - Maintained Phase 3 Bid Desk allocation, duplicate bid protection, persistent SLA, and MongoDB persistence.
 - Verified workspace with clean `npm run typecheck` and `npm run build`.
 
-## WEEK 9 — Upcoming Phases
+## WEEK 9 — Phase 5: Earnings Verification & Ledger Pipeline (COMPLETED)
 
-- Phase 5: Earnings Verification & Ledger Pipeline
-- Phase 6: Academic Safeguards Persistence & Strict Enforcement
-- Phase 7: Dynamic Database Analytics & Reporting
+- Implemented authenticated student earnings submission (`POST /api/earnings`) deriving student identity from `req.user.studentId`.
+- Guaranteed initial state `PENDING` for all new earnings records (students cannot submit directly as `VERIFIED`).
+- Implemented server-side duplicate earning submission prevention (`studentId + platformName + originalAmount + earningDate`).
+- Preserved original currency (`originalAmount`, `originalCurrency`) with FX conversion stored separately (`convertedAmount`, `convertedCurrency`, `exchangeRate`).
+- Enforced privacy rules on `GET /api/earnings` & `GET /api/earnings/summary` (students can view only their own earnings).
+- Implemented institutional verification desk (`PATCH /api/earnings/:id/verify`) protected by `authenticate` + `requireRole("FACULTY_DIRECTOR", "CELL_COORDINATOR", "ADMINISTRATOR")`.
+- Supported explicit status transitions: `PENDING` -> `VERIFIED` (updates student verified earnings) or `PENDING` -> `REJECTED` (persists verifier identity, timestamp, and rejection rationale).
+- Strictly enforced rules: No payment gateway, no institution percentage deduction/commission, no platform password storage, no public earnings leaderboard.
+- Updated frontend UI (`EarningsScreen`) with student submission form, verified/pending totals, and institutional verifier workflow.
+- Verified workspace with clean `npm run typecheck` and `npm run build`.
+
+## WEEK 9 — Phase 7: Dynamic Database Analytics & Reporting (COMPLETED)
+
+- Implemented database-backed dynamic analytics engine in `apps/api/src/services/analytics.service.ts`.
+- Sourced `activeStudents`, `opportunityPipeline`, `totalBids`, `allocations`, and `verifiedEarnings` dynamically from MongoDB collections.
+- Implemented calendar month verified earnings filtering (`monthlyEarnings`), ensuring zero remains zero and never falls back to mock figures.
+- Calculated academic `complianceRate` from `AcademicSnapshotModel` (`COMPLIANT` / total).
+- Calculated cohort `completionRate` from active students' average training progress (`StudentModel.trainingProgress`).
+- Implemented `placementRate` based on distinct allocated students divided by active students.
+- Implemented `proposalWinRate` based on approved proposals vs. submitted proposals in `ProposalModel`.
+- Sourced `averageResponseHours` from actual bid submission to allocation timestamp delta; returns `null` when insufficient timestamp records exist.
+- Returned `null` for `learnerSatisfaction` until genuine survey evaluation instruments exist, prohibiting fabricated satisfaction scores.
+- Implemented Monday–Sunday weekly activity grouping across bids, allocations, proposals, and earnings submissions with zero-count days included.
+- Preserved dynamic `studentsByTier` cohort breakdown via MongoDB aggregation.
+- Protected `GET /api/dashboard` and `GET /api/analytics` with `authenticate` middleware.
+- Enforced strict student privacy: aggregate-only data, zero individual student earnings leak, and complete ban on public earnings leaderboards.
+- Integrated `DashboardOverview` and `AnalyticsScreen` on Next.js frontend with live API fetching, session context, loading/error states, and live activity chart.
+- Verified workspace with clean `npm run typecheck`, `npm run build`, and `npm run check`.
 
 
 

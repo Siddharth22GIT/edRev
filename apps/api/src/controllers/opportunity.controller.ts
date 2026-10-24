@@ -1,7 +1,9 @@
 import type { Request, Response } from "express";
 import {
   allocateOpportunityService,
+  createOpportunityService,
   getAllocationForOpportunityService,
+  getBidProposalDocumentService,
   getBidsForOpportunityService,
   getOpportunitiesService,
   getOpportunityByIdService,
@@ -47,6 +49,32 @@ export async function getBidsForOpportunityHandler(req: Request, res: Response):
   }
 }
 
+export async function getBidProposalDocumentHandler(req: Request, res: Response): Promise<void> {
+  try {
+    const opportunityId = getParam(req.params.id);
+    const bidId = getParam(req.params.bidId);
+
+    const doc = await getBidProposalDocumentService(opportunityId, bidId);
+    if (!doc) {
+      errorResponse(res, "Proposal document not found.", 404);
+      return;
+    }
+
+    const disposition = req.query.disposition === "inline" ? "inline" : "attachment";
+    const encodedFilename = encodeURIComponent(doc.filename);
+
+    res.setHeader("Content-Type", doc.mimeType);
+    res.setHeader("Content-Length", doc.buffer.length);
+    res.setHeader(
+      "Content-Disposition",
+      `${disposition}; filename="${doc.filename}"; filename*=UTF-8''${encodedFilename}`
+    );
+    res.send(doc.buffer);
+  } catch (err: any) {
+    errorResponse(res, err.message || "Failed to retrieve proposal document.", 500);
+  }
+}
+
 export async function getAllocationForOpportunityHandler(req: Request, res: Response): Promise<void> {
   try {
     const id = getParam(req.params.id);
@@ -57,8 +85,34 @@ export async function getAllocationForOpportunityHandler(req: Request, res: Resp
   }
 }
 
+export async function createOpportunityHandler(req: Request, res: Response): Promise<void> {
+  try {
+    const { title, project, company, client, category, budget, deadline, deliverables, description, skills, requiredTier } = req.body;
+    if (!project && !title) {
+      errorResponse(res, "Opportunity project name/title is required.");
+      return;
+    }
+    const data = await createOpportunityService({
+      title: title || project,
+      project: project || title,
+      company: company || client || "Partner Company",
+      client: client || company || "Partner Company",
+      category: category || "Development",
+      budget: Number(budget) || 10000,
+      deadline: deadline || new Date(Date.now() + 14 * 86400000).toISOString(),
+      deliverables: Array.isArray(deliverables) ? deliverables : typeof deliverables === "string" ? deliverables.split(",").map((s) => s.trim()).filter(Boolean) : ["Deliverable 1"],
+      description: description || "Project scope and deliverables.",
+      skills: Array.isArray(skills) ? skills : typeof skills === "string" ? skills.split(",").map((s) => s.trim()).filter(Boolean) : ["General"],
+      requiredTier: requiredTier || "TIER_1",
+    });
+    res.status(201).json({ data });
+  } catch (err: any) {
+    errorResponse(res, err.message || "Failed to create opportunity.", 500);
+  }
+}
+
 export async function submitBidHandler(req: Request, res: Response): Promise<void> {
-  const { proposedAmount, estimatedCompletionTime, message, relevantSkills } = req.body;
+  const { proposedAmount, estimatedCompletionTime, message, relevantSkills, proposalPdfUrl, proposalPdfName } = req.body;
   const opportunityId = getParam(req.params.id);
 
   // Authenticated student identity enforcement (Do NOT trust frontend body studentId override)
@@ -82,6 +136,8 @@ export async function submitBidHandler(req: Request, res: Response): Promise<voi
       estimatedCompletionTime,
       message,
       relevantSkills,
+      proposalPdfUrl,
+      proposalPdfName,
     });
     res.status(201).json({ data: newBid });
   } catch (err: any) {

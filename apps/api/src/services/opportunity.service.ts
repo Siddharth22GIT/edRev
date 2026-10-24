@@ -35,6 +35,83 @@ export async function getBidsForOpportunityService(opportunityId: string): Promi
   return mockGetBids(opportunityId);
 }
 
+export async function getBidProposalDocumentService(
+  opportunityId: string,
+  bidId: string
+): Promise<{
+  buffer: Buffer;
+  mimeType: string;
+  filename: string;
+  isPdf: boolean;
+  isDocx: boolean;
+} | null> {
+  let bid: Bid | null = null;
+  if (isDbConnected()) {
+    const found = await BidModel.findOne({
+      opportunityId,
+      $or: [{ id: bidId }, { studentId: bidId }],
+    }).lean();
+    if (found) {
+      bid = stripMongoFields<Bid>(found);
+    }
+  } else {
+    const list = mockGetBids(opportunityId);
+    bid = list.find((b) => b.id === bidId || b.studentId === bidId) ?? null;
+  }
+
+  if (!bid || !bid.proposalPdfUrl) {
+    return null;
+  }
+
+  const dataUrl = bid.proposalPdfUrl;
+  let buffer: Buffer;
+  let declaredMime = "application/pdf";
+
+  if (dataUrl.startsWith("data:")) {
+    const parts = dataUrl.split(",");
+    const match = parts[0].match(/:(.*?);/);
+    if (match) declaredMime = match[1];
+    buffer = Buffer.from(parts[1] || "", "base64");
+  } else {
+    buffer = Buffer.from(dataUrl, "base64");
+  }
+
+  const isPdf = buffer.subarray(0, 4).toString("utf-8") === "%PDF";
+  const isDocx = buffer.subarray(0, 4).toString("utf-8") === "PK\x03\x04";
+
+  let mimeType = declaredMime || "application/pdf";
+  let defaultExt = ".pdf";
+
+  if (isDocx) {
+    mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    defaultExt = ".docx";
+  } else if (isPdf) {
+    mimeType = "application/pdf";
+    defaultExt = ".pdf";
+  }
+
+  let rawName = bid.proposalPdfName || `proposal-${bid.studentId}${defaultExt}`;
+  // Strip illegal whitespace before the extension (e.g. "Rubrics .pdf" -> "Rubrics.pdf")
+  rawName = rawName.replace(/\s+\./g, ".").trim();
+  // Strip characters forbidden in standard filenames
+  rawName = rawName.replace(/[/\\?%*:|"<>]/g, "_");
+
+  // Guarantee valid extension matching detected format
+  if (isDocx && !rawName.toLowerCase().endsWith(".docx")) {
+    rawName = rawName.replace(/\.[^/.]+$/, "") + ".docx";
+  } else if (isPdf && !rawName.toLowerCase().endsWith(".pdf")) {
+    rawName = rawName.replace(/\.[^/.]+$/, "") + ".pdf";
+  }
+
+  return {
+    buffer,
+    mimeType,
+    filename: rawName,
+    isPdf,
+    isDocx,
+  };
+}
+
 export async function getAllocationForOpportunityService(opportunityId: string): Promise<Allocation | null> {
   if (isDbConnected()) {
     const allocation = await AllocationModel.findOne({ opportunityId }).lean();
@@ -51,6 +128,39 @@ export async function getAllocationForOpportunityService(opportunityId: string):
   return null;
 }
 
+export async function createOpportunityService(input: Partial<Opportunity>): Promise<Opportunity> {
+  const oppId = input.id || `opp-${Date.now()}`;
+  const newOpp: Opportunity = {
+    id: oppId,
+    title: input.title || input.project || "New Opportunity",
+    project: input.project || input.title || "New Project",
+    description: input.description || "Client deliverable scope and specifications.",
+    client: input.client || input.company || "Enterprise Partner",
+    company: input.company || input.client || "Client Co.",
+    category: input.category || "Design & Development",
+    skills: input.skills && input.skills.length > 0 ? input.skills : ["General"],
+    budget: Number(input.budget) || 10000,
+    currency: input.currency || "INR",
+    deadline: input.deadline || new Date(Date.now() + 14 * 86400000).toISOString(),
+    status: (input.status as any) || "OPEN",
+    requiredTier: (input.requiredTier as any) || "TIER_1",
+    estimatedHours: Number(input.estimatedHours) || 20,
+    numberOfBids: 0,
+    slaDeadline: input.slaDeadline || new Date(Date.now() + 7 * 86400000).toISOString(),
+    matchScore: Number(input.matchScore) || 95,
+    deliverables: input.deliverables && input.deliverables.length > 0 ? input.deliverables : ["Initial Research", "Draft Submission", "Final Handoff"],
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (isDbConnected()) {
+    const created = await OpportunityModel.create(newOpp);
+    return stripMongoFields<Opportunity>(created.toObject());
+  }
+
+  mockOpportunities.unshift(newOpp);
+  return newOpp;
+}
+
 export interface SubmitBidInput {
   opportunityId: string;
   studentId: string;
@@ -58,6 +168,8 @@ export interface SubmitBidInput {
   estimatedCompletionTime: string;
   message: string;
   relevantSkills: string;
+  proposalPdfUrl?: string;
+  proposalPdfName?: string;
 }
 
 export async function submitBidService(input: SubmitBidInput): Promise<Bid> {
@@ -85,6 +197,8 @@ export async function submitBidService(input: SubmitBidInput): Promise<Bid> {
       estimatedCompletionTime: input.estimatedCompletionTime,
       message: input.message,
       relevantSkills: input.relevantSkills,
+      proposalPdfUrl: input.proposalPdfUrl,
+      proposalPdfName: input.proposalPdfName,
       status: "SUBMITTED" as const,
       createdAt: new Date().toISOString(),
     };

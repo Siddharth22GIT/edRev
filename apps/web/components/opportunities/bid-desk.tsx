@@ -8,6 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth-context";
 import { formatDate } from "@/lib/format";
+import {
+  IconBriefcase,
+  IconFileText,
+  IconCheckCircle,
+  IconAlertTriangle,
+  IconArrowRight,
+  IconSend,
+  IconClock,
+  IconUserCheck,
+} from "@/components/ui/icons";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
@@ -21,6 +31,134 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
   const [days, setDays] = useState("7 days");
   const [skills, setSkills] = useState("");
   const [notice, setNotice] = useState("");
+
+  // Proposal PDF upload state
+  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
+  const [pdfFileName, setPdfFileName] = useState<string | null>(null);
+  const [pdfFileSize, setPdfFileSize] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+
+  // Reviewing bid modal state
+  const [reviewingBid, setReviewingBid] = useState<Bid | null>(null);
+
+  // Preview info state for the modal
+  const [previewInfo, setPreviewInfo] = useState<{
+    blobUrl: string;
+    isPdf: boolean;
+    isDocx: boolean;
+    resolvedName: string;
+  } | null>(null);
+
+  function parseFileFromDataUrl(dataUrl: string, fallbackName = "proposal.pdf") {
+    const cleanFallback = fallbackName.replace(/\s+\./g, ".").trim().replace(/[/\\?%*:|"<>]/g, "_");
+    if (!dataUrl) return { blob: null, blobUrl: "", isPdf: false, isDocx: false, resolvedName: cleanFallback };
+
+    if (!dataUrl.startsWith("data:")) {
+      const isDoc = cleanFallback.toLowerCase().endsWith(".docx") || cleanFallback.toLowerCase().endsWith(".doc");
+      return { blob: null, blobUrl: dataUrl, isPdf: !isDoc, isDocx: isDoc, resolvedName: cleanFallback };
+    }
+
+    try {
+      const parts = dataUrl.split(",");
+      const base64 = parts[1];
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+
+      const isDocx = binary.startsWith("PK\x03\x04");
+      const isPdf = binary.startsWith("%PDF");
+
+      let mime = parts[0].match(/:(.*?);/)?.[1] || "application/pdf";
+      let resolvedName = cleanFallback;
+
+      if (isDocx) {
+        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        if (!resolvedName.toLowerCase().endsWith(".docx")) {
+          resolvedName = resolvedName.replace(/\.[^/.]+$/, "") + ".docx";
+        }
+      } else if (isPdf) {
+        mime = "application/pdf";
+        if (!resolvedName.toLowerCase().endsWith(".pdf")) {
+          resolvedName = resolvedName.replace(/\.[^/.]+$/, "") + ".pdf";
+        }
+      }
+
+      const blob = new Blob([bytes], { type: mime });
+      const blobUrl = URL.createObjectURL(blob);
+
+      return { blob, blobUrl, isPdf: isPdf || (!isDocx && mime === "application/pdf"), isDocx, resolvedName };
+    } catch (err) {
+      console.error("Failed to parse data URL:", err);
+      return { blob: null, blobUrl: dataUrl, isPdf: true, isDocx: false, resolvedName: cleanFallback };
+    }
+  }
+
+  const handleDownloadPdf = (dataUrl: string, rawFilename?: string, bidderId?: string, bidId?: string) => {
+    const targetBidId = bidId || bidderId;
+    if (opportunity?.id && targetBidId) {
+      const serverDownloadUrl = `${api}/opportunities/${opportunity.id}/bids/${targetBidId}/proposal?disposition=attachment`;
+      const link = document.createElement("a");
+      link.href = serverDownloadUrl;
+      link.setAttribute("download", "");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    const fallback = (rawFilename || `proposal-${bidderId || "document"}.pdf`).replace(/\s+\./g, ".").trim();
+    const { blob, blobUrl, resolvedName } = parseFileFromDataUrl(dataUrl, fallback);
+
+    const url = blobUrl || dataUrl;
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = resolvedName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    if (blob) {
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    }
+  };
+
+  const handleOpenInTab = (dataUrl: string, rawFilename?: string, bidId?: string) => {
+    const fallback = (rawFilename || "proposal.pdf").replace(/\s+\./g, ".").trim();
+    const { isDocx } = parseFileFromDataUrl(dataUrl, fallback);
+
+    if (isDocx) {
+      handleDownloadPdf(dataUrl, rawFilename, undefined, bidId);
+      return;
+    }
+
+    if (opportunity?.id && bidId) {
+      window.open(`${api}/opportunities/${opportunity.id}/bids/${bidId}/proposal?disposition=inline`, "_blank");
+      return;
+    }
+
+    const { blobUrl } = parseFileFromDataUrl(dataUrl, fallback);
+    const url = blobUrl || dataUrl;
+    window.open(url, "_blank");
+  };
+
+  useEffect(() => {
+    if (reviewingBid?.proposalPdfUrl) {
+      const info = parseFileFromDataUrl(
+        reviewingBid.proposalPdfUrl,
+        reviewingBid.proposalPdfName || `proposal-${reviewingBid.studentId}.pdf`
+      );
+      setPreviewInfo(info);
+      return () => {
+        if (info.blobUrl && info.blobUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(info.blobUrl);
+        }
+      };
+    } else {
+      setPreviewInfo(null);
+    }
+  }, [reviewingBid]);
 
   const role = user?.role || "STUDENT";
   const studentId = user?.studentId || user?.id || "stu-202";
@@ -49,6 +187,30 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
     loadData();
   }, [opportunity.id]);
 
+  const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPdfError(null);
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
+        setPdfError("Please upload a valid PDF document (.pdf).");
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setPdfError("PDF file size must be less than 10MB.");
+        return;
+      }
+      const cleanFileName = file.name.replace(/\s+\./g, ".").trim().replace(/[/\\?%*:|"<>]/g, "_");
+      const sizeStr = (file.size / (1024 * 1024)).toFixed(2) + " MB";
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPdfDataUrl(reader.result as string);
+        setPdfFileName(cleanFileName);
+        setPdfFileSize(sizeStr);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
@@ -71,13 +233,19 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
           estimatedCompletionTime: days,
           message,
           relevantSkills: skills,
+          proposalPdfUrl: pdfDataUrl || undefined,
+          proposalPdfName: pdfFileName || undefined,
         }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.message);
       setBids((x) => [...x, j.data]);
       setState("success");
-      setNotice("Bid submitted successfully.");
+      setNotice("Bid and proposal submitted successfully.");
+      setPdfDataUrl(null);
+      setPdfFileName(null);
+      setPdfFileSize(null);
+      setPdfError(null);
     } catch (e) {
       setState("error");
       setNotice(e instanceof Error ? e.message : "Unable to submit bid.");
@@ -112,88 +280,99 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div id="bid-desk-section" className="space-y-6">
       {/* SLA Persistent Tracking Display Card if Allocated */}
       {allocation && (
-        <Card className="border-blue-200 bg-blue-50/40 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-blue-100 pb-4">
-            <div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-blue-600">Active SLA Commitment</span>
-              <h3 className="mt-1 text-lg font-bold text-slate-950">Work Allocation & SLA Tracking</h3>
+        <Card className="border-[#C2DCF2] bg-[#EFF6FC]/70 p-6 shadow-card">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#C2DCF2]/70 pb-4">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#3978B8] text-white">
+                <IconClock size={18} />
+              </span>
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#3978B8]">Active SLA Commitment</span>
+                <h3 className="mt-0.5 text-lg font-bold text-[#30343B]">Work Allocation & SLA Tracking</h3>
+              </div>
             </div>
             <Badge tone={allocation.slaStatus === "OVERDUE" ? "red" : allocation.slaStatus === "AT_RISK" ? "amber" : "green"}>
-
               SLA Status: {allocation.slaStatus || "ACTIVE"}
             </Badge>
           </div>
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-            <div>
-              <span className="block text-slate-500 text-xs font-medium">Assigned Student</span>
-              <span className="font-semibold text-slate-900">{allocation.studentId}</span>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+            <div className="rounded-xl border border-[#C2DCF2]/50 bg-white/70 p-3">
+              <span className="block text-[#666D7A] font-medium">Assigned Student</span>
+              <span className="mt-0.5 block font-bold text-[#30343B] text-sm">{allocation.studentId}</span>
             </div>
-            <div>
-              <span className="block text-slate-500 text-xs font-medium">Allocated By</span>
-              <span className="font-semibold text-slate-900">{allocation.allocatedBy}</span>
+            <div className="rounded-xl border border-[#C2DCF2]/50 bg-white/70 p-3">
+              <span className="block text-[#666D7A] font-medium">Allocated By</span>
+              <span className="mt-0.5 block font-bold text-[#30343B] text-sm">{allocation.allocatedBy}</span>
             </div>
-            <div>
-              <span className="block text-slate-500 text-xs font-medium">Allocated At</span>
-              <span className="font-semibold text-slate-900">{formatDate(allocation.allocatedAt)}</span>
+            <div className="rounded-xl border border-[#C2DCF2]/50 bg-white/70 p-3">
+              <span className="block text-[#666D7A] font-medium">Allocated At</span>
+              <span className="mt-0.5 block font-bold text-[#30343B] text-sm">{formatDate(allocation.allocatedAt)}</span>
             </div>
-            <div>
-              <span className="block text-slate-500 text-xs font-medium">SLA Target Deadline</span>
-              <span className="font-semibold text-blue-700">{allocation.slaDeadline ? formatDate(allocation.slaDeadline) : "72 hours"}</span>
+            <div className="rounded-xl border border-[#C2DCF2]/50 bg-white/70 p-3">
+              <span className="block text-[#666D7A] font-medium">SLA Target Deadline</span>
+              <span className="mt-0.5 block font-bold text-[#3978B8] text-sm">{allocation.slaDeadline ? formatDate(allocation.slaDeadline) : "72 hours"}</span>
             </div>
           </div>
         </Card>
       )}
 
-      <Card className="p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
-          <div>
-            <h2 className="text-lg font-bold text-slate-950">Opportunity Bid Desk</h2>
-            <p className="mt-1 text-xs text-slate-500">
-              {user ? (
-                <span>Authenticated Session: <strong className="text-slate-900">{user.name}</strong> ({user.role})</span>
-              ) : (
-                <span>Public View Mode. <Link className="font-semibold text-blue-600 hover:underline" href="/login">Sign in</Link> to bid or allocate.</span>
-              )}
-            </p>
+      <Card className="p-6 border-[#E6E6E6] bg-white shadow-card">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E6E6E6] pb-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FEF6EE] text-[#C27803] ring-1 ring-[#F2A65A]/30">
+              <IconBriefcase size={20} />
+            </span>
+            <div>
+              <h2 className="text-lg font-bold text-[#30343B]">Opportunity Bid Desk</h2>
+              <p className="mt-0.5 text-xs text-[#666D7A]">
+                {user ? (
+                  <span>Authenticated Session: <strong className="text-[#30343B]">{user.name}</strong></span>
+                ) : (
+                  <span>Public View Mode. <Link className="font-bold text-[#3978B8] hover:underline" href="/login">Sign in</Link> to bid or allocate.</span>
+                )}
+              </p>
+            </div>
           </div>
           {user && (
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 border border-slate-200">
+            <span className="rounded-full bg-[#FEF6EE] px-3 py-1 text-xs font-bold text-[#C27803] border border-[#F2A65A]/40">
               Role: {user.role}
             </span>
           )}
         </div>
 
         {notice && (
-          <p className={`mt-4 rounded-xl px-4 py-3 text-sm font-medium ${state === "error" ? "border border-rose-200 bg-rose-50 text-rose-700" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-            {notice}
-          </p>
+          <div className={`mt-4 rounded-xl px-4 py-3 text-sm font-semibold flex items-center gap-2 ${state === "error" ? "border border-rose-200 bg-rose-50 text-rose-700" : "border border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+            {state === "error" ? <IconAlertTriangle size={18} /> : <IconCheckCircle size={18} />}
+            <span>{notice}</span>
+          </div>
         )}
 
         {/* STUDENT BID FORM */}
         {role === "STUDENT" ? (
           <form className="mt-6 grid gap-4" onSubmit={submit}>
             {mine ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
-                ✓ You have already submitted a bid for this opportunity.
+              <div className="rounded-xl border border-amber-200 bg-[#FEF6EE] p-4 text-sm font-semibold text-[#C27803] flex items-center gap-2">
+                <IconCheckCircle size={18} />
+                <span>You have already submitted a bid for this opportunity.</span>
               </div>
             ) : opportunity.status === "ALLOCATED" ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-100 p-4 text-sm font-medium text-slate-600">
+              <div className="rounded-xl border border-[#E6E6E6] bg-[#F7F7F6] p-4 text-sm font-medium text-[#666D7A]">
                 This opportunity has already been allocated to a student.
               </div>
             ) : (
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500" htmlFor="proposedAmount">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#666D7A]" htmlFor="proposedAmount">
                       Proposed Amount ({opportunity.currency})
                     </label>
                     <input
                       id="proposedAmount"
-                      className="mt-1.5 w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      className="mt-1.5 w-full rounded-xl border border-[#E6E6E6] bg-white p-2.5 text-sm text-[#30343B] outline-none transition focus:border-[#3978B8] focus:ring-2 focus:ring-[#C2DCF2]"
                       min="1"
                       onChange={(e) => setAmount(e.target.value)}
                       placeholder="e.g. 18000"
@@ -202,12 +381,12 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500" htmlFor="estimatedCompletionTime">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#666D7A]" htmlFor="estimatedCompletionTime">
                       Estimated Delivery Time
                     </label>
                     <input
                       id="estimatedCompletionTime"
-                      className="mt-1.5 w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      className="mt-1.5 w-full rounded-xl border border-[#E6E6E6] bg-white p-2.5 text-sm text-[#30343B] outline-none transition focus:border-[#3978B8] focus:ring-2 focus:ring-[#C2DCF2]"
                       onChange={(e) => setDays(e.target.value)}
                       placeholder="e.g. 7 days"
                       value={days}
@@ -216,12 +395,12 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500" htmlFor="relevantSkills">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#666D7A]" htmlFor="relevantSkills">
                     Relevant Skills & Tools
                   </label>
                   <input
                     id="relevantSkills"
-                    className="mt-1.5 w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="mt-1.5 w-full rounded-xl border border-[#E6E6E6] bg-white p-2.5 text-sm text-[#30343B] outline-none transition focus:border-[#3978B8] focus:ring-2 focus:ring-[#C2DCF2]"
                     onChange={(e) => setSkills(e.target.value)}
                     placeholder="e.g. Figma, User Interviews, React"
                     value={skills}
@@ -229,12 +408,12 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500" htmlFor="bidMessage">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#666D7A]" htmlFor="bidMessage">
                     Cover Message / Delivery Proposal
                   </label>
                   <textarea
                     id="bidMessage"
-                    className="mt-1.5 w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="mt-1.5 w-full rounded-xl border border-[#E6E6E6] bg-white p-2.5 text-sm text-[#30343B] outline-none transition focus:border-[#3978B8] focus:ring-2 focus:ring-[#C2DCF2]"
                     onChange={(e) => setMessage(e.target.value)}
                     placeholder="Explain why you are a great fit for this client project..."
                     rows={3}
@@ -242,50 +421,291 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
                   />
                 </div>
 
-                <Button className="mt-2" disabled={state === "loading"} type="submit">
-                  {state === "loading" ? "Submitting Bid…" : "Submit Bid to Opportunity"}
-                </Button>
+                {/* PDF PROPOSAL UPLOAD */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#666D7A] mb-1.5">
+                    Proposal Document (PDF)
+                  </label>
+                  {pdfDataUrl ? (
+                    <div className="flex items-center justify-between rounded-xl border border-[#C2DCF2] bg-[#EFF6FC]/80 p-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#3978B8] text-white font-bold text-xs shadow-sm">
+                          <IconFileText size={20} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-[#30343B]">{pdfFileName}</p>
+                          <p className="text-xs text-[#666D7A]">{pdfFileSize} · Ready for submission</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPdfDataUrl(null);
+                          setPdfFileName(null);
+                          setPdfFileSize(null);
+                        }}
+                        className="rounded-lg px-2.5 py-1 text-xs font-bold text-rose-600 hover:bg-rose-100 transition"
+                      >
+                        ✕ Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border-2 border-dashed border-[#E6E6E6] bg-[#F7F7F6]/60 p-4 transition hover:bg-[#F7F7F6]">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#FEF6EE] text-[#C27803] font-bold text-sm">
+                            <IconFileText size={20} />
+                          </span>
+                          <div>
+                            <p className="text-xs font-bold text-[#30343B]">
+                              Upload Project Proposal Document (PDF)
+                            </p>
+                            <p className="text-xs text-[#666D7A]">Supports PDF format up to 10MB (detailed scope, timeline, deliverables)</p>
+                          </div>
+                        </div>
+                        <input
+                          id="proposalPdfInput"
+                          type="file"
+                          accept="application/pdf"
+                          className="block w-full sm:w-auto text-xs text-[#666D7A] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#3978B8] file:text-white hover:file:bg-[#2F659C] cursor-pointer"
+                          onChange={handlePdfUpload}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {pdfError && <p className="mt-1.5 text-xs font-semibold text-rose-600">{pdfError}</p>}
+                </div>
+
+                <div className="pt-2">
+                  <Button variant="primary" disabled={state === "loading"} type="submit">
+                    <IconSend size={16} />
+                    <span>{state === "loading" ? "Submitting Bid…" : "Submit Bid to Opportunity"}</span>
+                  </Button>
+                </div>
               </>
             )}
           </form>
         ) : (
           /* ANALYST / ADMIN BID REVIEW & ALLOCATION BOARD */
           <div className="mt-6 space-y-4">
-            <h3 className="font-semibold text-slate-950">Submitted Learner Bids ({bids.length})</h3>
+            <h3 className="font-bold text-[#30343B] text-base">Submitted Student Bids ({bids.length})</h3>
             {bids.length ? (
-              <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+              <div className="divide-y divide-[#E6E6E6] rounded-xl border border-[#E6E6E6] bg-white">
                 {bids.map((b) => (
-                  <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between" key={b.id}>
-                    <div>
+                  <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between transition hover:bg-[#F7F7F6]/50" key={b.id}>
+                    <div className="space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-slate-900">{b.studentId}</span>
+                        <span className="font-bold text-[#30343B]">{b.studentId}</span>
                         <Badge tone={b.status === "ALLOCATED" ? "green" : "blue"}>{b.status}</Badge>
+                        {b.proposalPdfUrl && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-[#FEF6EE] px-2 py-0.5 text-xs font-bold text-[#C27803] border border-[#F2A65A]/40">
+                            📄 Proposal Document Attached
+                          </span>
+                        )}
                       </div>
-                      <p className="mt-1 text-sm font-medium text-slate-700">Proposed: ₹{b.proposedAmount} · Delivery: {b.estimatedCompletionTime}</p>
-                      <p className="mt-1 text-xs text-slate-500">Skills: {b.relevantSkills}</p>
-                      <p className="mt-1 text-xs italic text-slate-600">"{b.message}"</p>
+                      <p className="text-sm font-semibold text-[#30343B]">Proposed: ₹{b.proposedAmount} · Delivery: {b.estimatedCompletionTime}</p>
+                      <p className="text-xs text-[#666D7A]">Skills: {b.relevantSkills}</p>
+                      <p className="text-xs italic text-[#666D7A]">"{b.message}"</p>
+                      {b.proposalPdfUrl && (
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadPdf(b.proposalPdfUrl!, b.proposalPdfName, b.studentId, b.id)}
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#3978B8] hover:text-[#2F659C] bg-[#EFF6FC] px-2.5 py-1 rounded-lg border border-[#C2DCF2] transition"
+                          >
+                            📥 Download Proposal ({b.proposalPdfName?.replace(/\s+\./g, ".").trim() || "proposal.pdf"})
+                          </button>
+                        </div>
+                      )}
                     </div>
 
-                    {(role === "BID_DESK_ANALYST" || role === "CELL_COORDINATOR" || role === "ADMINISTRATOR") && opportunity.status !== "ALLOCATED" && (
+                    <div className="flex items-center gap-2 shrink-0">
                       <Button
-                        className="shrink-0"
-                        disabled={state === "loading" || b.status === "ALLOCATED"}
-                        onClick={() => allocate(b.studentId)}
+                        variant="secondary"
+                        className="text-xs"
+                        onClick={() => setReviewingBid(b)}
                       >
-                        {state === "loading" ? "Processing…" : "Allocate Work"}
+                        Review Proposal & Allocate →
                       </Button>
-                    )}
+                      {(role === "BID_DESK_ANALYST" || role === "CELL_COORDINATOR" || role === "ADMINISTRATOR") && opportunity.status !== "ALLOCATED" && b.status !== "ALLOCATED" && (
+                        <Button
+                          variant="primary"
+                          className="text-xs"
+                          disabled={state === "loading"}
+                          onClick={() => allocate(b.studentId)}
+                        >
+                          <IconUserCheck size={14} />
+                          <span>{state === "loading" ? "Processing…" : "Quick Allocate"}</span>
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="rounded-xl border border-slate-100 bg-slate-50/50 p-6 text-center text-sm text-slate-500">
+              <p className="rounded-xl border border-[#E6E6E6] bg-[#F7F7F6]/50 p-6 text-center text-sm text-[#666D7A]">
                 No bids have been submitted for this opportunity yet.
               </p>
             )}
           </div>
         )}
       </Card>
+
+      {/* PROPOSAL REVIEW & ALLOCATION INSPECTION MODAL */}
+      {reviewingBid && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#30343B]/60 p-4 backdrop-blur-sm">
+          <div className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl border border-[#E6E6E6]">
+            <div className="flex items-start justify-between border-b border-[#E6E6E6] pb-4">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#3978B8]">Institutional Review & Allocation Desk</span>
+                <h2 className="text-xl font-bold text-[#30343B] mt-0.5">Review Student Proposal: {reviewingBid.studentId}</h2>
+                <p className="text-xs text-[#666D7A]">Opportunity: {opportunity.project} ({opportunity.id})</p>
+              </div>
+              <button
+                onClick={() => setReviewingBid(null)}
+                className="rounded-lg p-1.5 text-[#666D7A] hover:bg-[#F7F7F6] hover:text-[#30343B] transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-5">
+              {/* Bid Metrics Summary */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#F7F7F6] p-3.5 rounded-xl border border-[#E6E6E6] text-xs">
+                <div>
+                  <span className="text-[#666D7A] block">Proposed Amount</span>
+                  <span className="font-bold text-[#30343B] text-sm">₹{reviewingBid.proposedAmount}</span>
+                </div>
+                <div>
+                  <span className="text-[#666D7A] block">Delivery Timeline</span>
+                  <span className="font-bold text-[#30343B] text-sm">{reviewingBid.estimatedCompletionTime}</span>
+                </div>
+                <div>
+                  <span className="text-[#666D7A] block">Bid Status</span>
+                  <span className="font-bold text-[#3978B8] text-sm">{reviewingBid.status}</span>
+                </div>
+                <div>
+                  <span className="text-[#666D7A] block">Target SLA</span>
+                  <span className="font-bold text-emerald-700 text-sm">72 Hours Commitment</span>
+                </div>
+              </div>
+
+              {/* Relevant Skills & Cover Pitch */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#666D7A]">Relevant Skills & Tooling</h4>
+                <p className="mt-1 text-sm text-[#30343B] bg-white p-2.5 rounded-lg border border-[#E6E6E6]">{reviewingBid.relevantSkills || "Not specified"}</p>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#666D7A]">Cover Message / Delivery Pitch</h4>
+                <p className="mt-1 text-sm text-[#30343B] bg-white p-3 rounded-lg border border-[#E6E6E6] whitespace-pre-wrap">{reviewingBid.message}</p>
+              </div>
+
+              {/* PDF Proposal Review & Download Section */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#666D7A] mb-2">Attached Proposal Document</h4>
+                {reviewingBid.proposalPdfUrl ? (
+                  <div className="space-y-3 rounded-xl border border-[#C2DCF2] bg-[#EFF6FC]/40 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#C2DCF2]/70 pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${previewInfo?.isDocx ? "bg-[#3978B8]" : "bg-red-600"} text-[10px] font-bold text-white shadow-sm`}>
+                          {previewInfo?.isDocx ? "DOC" : "PDF"}
+                        </span>
+                        <span className="font-bold text-[#30343B] text-sm">
+                          {previewInfo?.resolvedName || reviewingBid.proposalPdfName || "Proposal_Document.pdf"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadPdf(reviewingBid.proposalPdfUrl!, reviewingBid.proposalPdfName, reviewingBid.studentId, reviewingBid.id)}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#3978B8] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#2F659C] shadow-sm transition"
+                        >
+                          📥 Download Document
+                        </button>
+                        {!previewInfo?.isDocx && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenInTab(reviewingBid.proposalPdfUrl!, reviewingBid.proposalPdfName, reviewingBid.id || reviewingBid.studentId)}
+                            className="inline-flex items-center gap-1 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-[#30343B] hover:bg-[#F7F7F6] border border-[#E6E6E6] shadow-sm transition"
+                          >
+                            ↗ Open in Tab
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Document Preview Section */}
+                    {previewInfo?.isDocx ? (
+                      <div className="rounded-xl border border-[#C2DCF2] bg-white p-6 text-center shadow-inner">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#3978B8] text-white font-extrabold text-xl shadow-md">
+                          W
+                        </div>
+                        <h4 className="mt-3 text-sm font-bold text-[#30343B]">
+                          Microsoft Word / Office Proposal Document
+                        </h4>
+                        <p className="mt-1 text-xs text-[#666D7A] max-w-md mx-auto">
+                          "{previewInfo.resolvedName}" is an Office document. Download to inspect the full formatted proposal in Microsoft Word, LibreOffice, or Google Docs.
+                        </p>
+                        <div className="mt-4">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadPdf(reviewingBid.proposalPdfUrl!, reviewingBid.proposalPdfName, reviewingBid.studentId, reviewingBid.id)}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-[#3978B8] px-4 py-2 text-xs font-bold text-white hover:bg-[#2F659C] shadow-sm transition"
+                          >
+                            📥 Download Office Document ({previewInfo.resolvedName})
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="overflow-hidden rounded-lg border border-[#E6E6E6] bg-white shadow-inner">
+                        <iframe
+                          src={`${api}/opportunities/${opportunity.id}/bids/${reviewingBid.id || reviewingBid.studentId}/proposal?disposition=inline`}
+                          title="Proposal PDF Document"
+                          className="w-full h-80 border-none"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-[#E6E6E6] bg-[#F7F7F6] p-6 text-center text-sm text-[#666D7A]">
+                    <p className="font-bold text-[#30343B]">No PDF proposal document was attached to this bid.</p>
+                    <p className="text-xs text-[#666D7A] mt-1">Reviewing based on student's submitted scope message and profile above.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Institutional Safeguards Note */}
+              <div className="rounded-xl bg-[#F7F7F6] p-3.5 border border-[#E6E6E6] text-xs text-[#666D7A]">
+                <p className="font-bold text-[#30343B]">Institutional Governance & Work Allocation Safeguards:</p>
+                <p className="mt-0.5">Allocating this opportunity will verify student's tier requirement, academic CGPA status, and weekly hour quota automatically before granting assignment.</p>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#E6E6E6] pt-4">
+              <Button variant="secondary" onClick={() => setReviewingBid(null)}>
+                Close
+              </Button>
+              {(role === "BID_DESK_ANALYST" || role === "CELL_COORDINATOR" || role === "ADMINISTRATOR") && (
+                <Button
+                  variant="primary"
+                  disabled={state === "loading" || reviewingBid.status === "ALLOCATED" || opportunity.status === "ALLOCATED"}
+                  onClick={async () => {
+                    await allocate(reviewingBid.studentId);
+                    setReviewingBid(null);
+                  }}
+                >
+                  <IconUserCheck size={16} />
+                  <span>
+                    {state === "loading" ? "Allocating…" : reviewingBid.status === "ALLOCATED" || opportunity.status === "ALLOCATED" ? "Already Allocated" : "Allocate Work to Student"}
+                  </span>
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

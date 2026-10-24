@@ -79,7 +79,8 @@ const bidSchema = new Schema<Bid>(
     message: { type: String, required: true },
     relevantSkills: { type: String, required: true },
     status: { type: String, enum: ["SUBMITTED", "SHORTLISTED", "REJECTED", "ALLOCATED", "WITHDRAWN"], default: "SUBMITTED" },
-
+    proposalPdfUrl: { type: String },
+    proposalPdfName: { type: String },
     createdAt: { type: String, required: true },
   },
   { timestamps: true }
@@ -116,6 +117,7 @@ const earningsEntrySchema = new Schema<EarningsEntry>(
     id: { type: String, required: true, unique: true },
     studentId: { type: String, required: true, index: true },
     platformName: { type: String, required: true },
+    projectTitle: { type: String },
     originalAmount: { type: Number, required: true },
     originalCurrency: { type: String, required: true },
     exchangeRate: { type: Number, required: true },
@@ -124,10 +126,12 @@ const earningsEntrySchema = new Schema<EarningsEntry>(
     earningDate: { type: String, required: true },
     verificationStatus: { type: String, enum: ["PENDING", "VERIFIED", "REJECTED"], default: "PENDING" },
     evidence: { type: String, required: true },
+    screenshotUrl: { type: String },
     evidenceStatus: { type: String, enum: ["AVAILABLE", "MISSING"], default: "AVAILABLE" },
     createdAt: { type: String, required: true },
     verifiedBy: { type: String },
     verifiedAt: { type: String },
+    rejectionReason: { type: String },
   },
   { timestamps: true }
 );

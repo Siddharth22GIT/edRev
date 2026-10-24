@@ -43,7 +43,7 @@ export async function checkSafeguardsService(studentId: string, opportunityId?: 
     const oppRank = opp ? tierRank[opp.requiredTier as Tier] || 1 : 1;
     const tierEligible = !opp || studentRank >= oppRank;
     const cgpaEligible = academic ? academic.cgpaStatus === "ELIGIBLE" : true;
-    const hourEligible = hourLog ? hourLog.status !== "BLOCKED" : true;
+    const hourEligible = hourLog ? (Boolean(hourLog.overridden) || hourLog.status !== "BLOCKED") : true;
     const blackoutEligible = !blackout;
     const complianceEligible = academic ? academic.complianceStatus !== "NON_COMPLIANT" : true;
 

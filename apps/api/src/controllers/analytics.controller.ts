@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import {
+  createProposalService,
   getAcademicSnapshotService,
   getAnalyticsService,
   getDashboardMetricsService,
@@ -18,9 +19,11 @@ export async function getDashboardHandler(_req: Request, res: Response): Promise
   try {
     const metrics = await getDashboardMetricsService();
     const allOpps = await getOpportunitiesService();
+    const analytics = await getAnalyticsService();
     res.json({
       metrics,
       recentOpportunities: allOpps.slice(0, 3),
+      weeklyActivity: analytics.weeklyActivity,
     });
   } catch (err: any) {
     errorResponse(res, err.message || "Failed to fetch dashboard metrics.", 500);
@@ -42,6 +45,30 @@ export async function getProposalsHandler(_req: Request, res: Response): Promise
     res.json({ data });
   } catch (err: any) {
     errorResponse(res, err.message || "Failed to fetch proposals.", 500);
+  }
+}
+
+export async function createProposalHandler(req: Request, res: Response): Promise<void> {
+  try {
+    const { title, studentName, opportunityId, author, status, value } = req.body;
+    if (!title) {
+      errorResponse(res, "Proposal title is required.");
+      return;
+    }
+    const student = studentName || req.user?.name || "Student Learner";
+    const authorName = author || req.user?.name || req.user?.role || "Student";
+    const data = await createProposalService({
+      title,
+      studentName: student,
+      opportunityId: opportunityId || "opp-1024",
+      author: authorName,
+      status: status || "DRAFT",
+      value: Number(value) || 0,
+      submittedAt: new Date().toISOString(),
+    });
+    res.status(201).json({ data });
+  } catch (err: any) {
+    errorResponse(res, err.message || "Failed to create proposal.", 500);
   }
 }
 
