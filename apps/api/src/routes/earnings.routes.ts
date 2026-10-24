@@ -1,8 +1,8 @@
 import { Router } from "express";
 import {
   getEarningsHandler,
+  getEarningsSummaryHandler,
   getPlatformAccountsHandler,
-  getStudentEarningsSummaryHandler,
   submitEarningHandler,
   verifyEarningHandler,
 } from "../controllers/earnings.controller.js";
@@ -10,11 +10,17 @@ import { authenticate, requireRole } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
+// Specific sub-paths must be registered before parameterized paths
+router.get("/earnings/summary", authenticate, getEarningsSummaryHandler);
 router.get("/earnings", authenticate, getEarningsHandler);
-router.get("/earnings/summary", authenticate, getStudentEarningsSummaryHandler);
-router.post("/earnings", authenticate, submitEarningHandler);
-router.patch("/earnings/:id/verify", authenticate, requireRole("FACULTY_DIRECTOR", "CELL_COORDINATOR", "ADMINISTRATOR"), verifyEarningHandler);
+router.post("/earnings", authenticate, requireRole("STUDENT"), submitEarningHandler);
+router.patch(
+  "/earnings/:id/verify",
+  authenticate,
+  requireRole("FACULTY_DIRECTOR", "CELL_COORDINATOR", "ADMINISTRATOR", "DEAN"),
+  verifyEarningHandler
+);
 
-router.get("/platform-accounts", getPlatformAccountsHandler);
+router.get("/platform-accounts", authenticate, getPlatformAccountsHandler);
 
 export default router;
