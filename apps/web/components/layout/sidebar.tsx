@@ -3,37 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import {
-  IconAnalytics,
-  IconDashboard,
-  IconEarnings,
-  IconOpportunities,
-  IconProposals,
-  IconSafeguards,
-  IconSettings,
-  IconStudents,
-  IconX,
-} from "@/components/ui/icons";
-
-export interface NavigationItem {
-  href: string;
-  label: string;
-  icon: typeof IconDashboard;
-}
-
-export const navigation: NavigationItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: IconDashboard },
-  { href: "/opportunities", label: "Opportunities", icon: IconOpportunities },
-  { href: "/students", label: "Students", icon: IconStudents },
-  { href: "/earnings", label: "Earnings", icon: IconEarnings },
-  { href: "/proposals", label: "Proposals", icon: IconProposals },
-  { href: "/safeguards", label: "Safeguards", icon: IconSafeguards },
-  { href: "/analytics", label: "Analytics", icon: IconAnalytics },
-];
-
-function isCurrentRoute(pathname: string, href: string): boolean {
-  return pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`));
-}
+import { isCurrentRoute, navigationFor, roleLabels } from "@/lib/navigation";
+import { useWorkQueue } from "@/lib/work-queue";
+import { LogoMark } from "@/components/ui/logo";
+import { IconSettings, IconX } from "@/components/ui/icons";
 
 interface SidebarProps {
   open: boolean;
@@ -43,18 +16,8 @@ interface SidebarProps {
 export function Sidebar({ open, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
-
-  const roleLabels: Record<string, string> = {
-    STUDENT: "Student",
-    BID_DESK_ANALYST: "Bid Desk Analyst",
-    PROPOSAL_EDITOR: "Proposal Editor",
-    GUILD_LEAD: "Guild Lead / Mentor",
-    CELL_COORDINATOR: "Cell Coordinator",
-    FACULTY_DIRECTOR: "Faculty Director",
-    PLACEMENT_OFFICE: "Placement Office",
-    DEAN: "Dean",
-    ADMINISTRATOR: "Administrator",
-  };
+  const { counts } = useWorkQueue();
+  const items = navigationFor(user?.role);
 
   return (
     <aside
@@ -65,9 +28,7 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
       {/* Brand Header */}
       <div className="mb-6 flex items-center justify-between px-2">
         <Link className="flex items-center gap-3" href="/dashboard" onClick={onNavigate}>
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F2A65A] text-lg font-black text-[#30343B] shadow-sm ring-2 ring-[#FBD7B3]">
-            R
-          </div>
+          <LogoMark className="shrink-0 rounded-xl shadow-sm ring-2 ring-[#FBD7B3]" size={40} />
           <div>
             <span className="block text-base font-extrabold tracking-tight text-[#30343B]">REVALANCHE</span>
             <span className="block text-[11px] font-semibold text-[#3978B8]">Institutional Earning OS</span>
@@ -88,9 +49,10 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
         Workspace Navigation
       </div>
       <nav aria-label="Main navigation" className="space-y-1">
-        {navigation.map((item) => {
+        {items.map((item) => {
           const current = isCurrentRoute(pathname, item.href);
           const Icon = item.icon;
+          const count = counts[item.href] ?? 0;
           return (
             <Link
               className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all ${
@@ -109,7 +71,15 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
               >
                 <Icon size={18} />
               </span>
-              <span>{item.label}</span>
+              <span className="flex-1">{item.label}</span>
+              {count > 0 && (
+                <span
+                  aria-label={`${count} waiting`}
+                  className="grid h-5 min-w-5 place-items-center rounded-full bg-[#F2A65A] px-1.5 text-[11px] font-extrabold text-[#30343B] ring-2 ring-white"
+                >
+                  {count}
+                </span>
+              )}
             </Link>
           );
         })}

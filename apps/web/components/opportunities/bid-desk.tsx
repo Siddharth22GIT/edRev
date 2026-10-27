@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import type { Allocation, Bid, Opportunity } from "@edurev/types";
+import { can, type Allocation, type Bid, type Opportunity } from "@edurev/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { celebrate } from "@/lib/celebrate";
+import { useWorkQueue } from "@/lib/work-queue";
 import { formatDate } from "@/lib/format";
 import {
   IconBriefcase,
@@ -19,10 +22,10 @@ import {
   IconUserCheck,
 } from "@/components/ui/icons";
 
-const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
-
 export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
-  const { user, getAuthHeaders } = useAuth();
+  const { user } = useAuth();
+  const { apiFetch, fetchBlobUrl } = useApi();
+  const workQueue = useWorkQueue();
   const [bids, setBids] = useState<Bid[]>([]);
   const [allocation, setAllocation] = useState<Allocation | null>(null);
   const [message, setMessage] = useState("");
@@ -48,6 +51,11 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
     isDocx: boolean;
     resolvedName: string;
   } | null>(null);
+  // Authenticated object URL for the inline PDF preview of the bid under review
+  const [previewFrameUrl, setPreviewFrameUrl] = useState<string | null>(null);
+
+  const proposalPath = (bidId: string, disposition: "inline" | "attachment") =>
+    `/opportunities/${opportunity.id}/bids/${bidId}/proposal?disposition=${disposition}`;
 
   function parseFileFromDataUrl(dataUrl: string, fallbackName = "proposal.pdf") {
     const cleanFallback = fallbackName.replace(/\s+\./g, ".").trim().replace(/[/\\?%*:|"<>]/g, "_");
@@ -98,13 +106,20 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
   const handleDownloadPdf = (dataUrl: string, rawFilename?: string, bidderId?: string, bidId?: string) => {
     const targetBidId = bidId || bidderId;
     if (opportunity?.id && targetBidId) {
-      const serverDownloadUrl = `${api}/opportunities/${opportunity.id}/bids/${targetBidId}/proposal?disposition=attachment`;
-      const link = document.createElement("a");
-      link.href = serverDownloadUrl;
-      link.setAttribute("download", "");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      fetchBlobUrl(proposalPath(targetBidId, "attachment"))
+        .then(({ url, filename }) => {
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = filename || (rawFilename || "proposal.pdf").replace(/\s+\./g, ".").trim();
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(url), 30000);
+        })
+        .catch((err) => {
+          setState("error");
+          setNotice(err instanceof Error ? err.message : "Unable to download proposal.");
+        });
       return;
     }
 
@@ -134,7 +149,19 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
     }
 
     if (opportunity?.id && bidId) {
-      window.open(`${api}/opportunities/${opportunity.id}/bids/${bidId}/proposal?disposition=inline`, "_blank");
+      // Open the tab synchronously (avoids popup blockers), then point it at the authenticated document.
+      const tab = window.open("", "_blank");
+      fetchBlobUrl(proposalPath(bidId, "inline"))
+        .then(({ url }) => {
+          if (tab) tab.location.href = url;
+          else window.open(url, "_blank");
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+        })
+        .catch((err) => {
+          tab?.close();
+          setState("error");
+          setNotice(err instanceof Error ? err.message : "Unable to open proposal.");
+        });
       return;
     }
 
@@ -160,19 +187,44 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
     }
   }, [reviewingBid]);
 
+  useEffect(() => {
+    setPreviewFrameUrl(null);
+    if (!reviewingBid?.proposalPdfUrl || !opportunity?.id || previewInfo?.isDocx) return;
+
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    fetchBlobUrl(proposalPath(reviewingBid.id || reviewingBid.studentId, "inline"))
+      .then(({ url }) => {
+        objectUrl = url;
+        if (cancelled) URL.revokeObjectURL(url);
+        else setPreviewFrameUrl(url);
+      })
+      .catch(() => {
+        // Fall back to the locally decoded copy of the document
+        if (!cancelled && previewInfo?.blobUrl) setPreviewFrameUrl(previewInfo.blobUrl);
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [reviewingBid, previewInfo?.isDocx]);
+
   const role = user?.role || "STUDENT";
   const studentId = user?.studentId || user?.id || "stu-202";
   const mine = bids.some((b) => b.studentId === studentId);
+  const canAllocate = can(role, "OPPORTUNITY_ALLOCATE");
 
   const loadData = async () => {
     try {
       const [bidsRes, allocRes] = await Promise.all([
-        fetch(`${api}/opportunities/${opportunity.id}/bids`),
-        fetch(`${api}/opportunities/${opportunity.id}/allocation`),
+        apiFetch(`/opportunities/${opportunity.id}/bids`),
+        apiFetch(`/opportunities/${opportunity.id}/allocation`),
       ]);
 
-      const bidsJson = await bidsRes.json();
-      setBids(bidsJson.data ?? []);
+      if (bidsRes.ok) {
+        const bidsJson = await bidsRes.json();
+        setBids(bidsJson.data ?? []);
+      }
 
       if (allocRes.ok) {
         const allocJson = await allocRes.json();
@@ -225,9 +277,8 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
     }
     setState("loading");
     try {
-      const r = await fetch(`${api}/opportunities/${opportunity.id}/bids`, {
+      const r = await apiFetch(`/opportunities/${opportunity.id}/bids`, {
         method: "POST",
-        headers: getAuthHeaders(),
         body: JSON.stringify({
           proposedAmount: Number(amount),
           estimatedCompletionTime: days,
@@ -242,6 +293,7 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
       setBids((x) => [...x, j.data]);
       setState("success");
       setNotice("Bid and proposal submitted successfully.");
+      celebrate();
       setPdfDataUrl(null);
       setPdfFileName(null);
       setPdfFileSize(null);
@@ -260,9 +312,8 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
     }
     setState("loading");
     try {
-      const r = await fetch(`${api}/opportunities/${opportunity.id}/allocate`, {
+      const r = await apiFetch(`/opportunities/${opportunity.id}/allocate`, {
         method: "POST",
-        headers: getAuthHeaders(),
         body: JSON.stringify({
           studentId: bidderStudentId,
         }),
@@ -272,7 +323,9 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
 
       setState("success");
       setNotice(`Opportunity successfully allocated to Student ${bidderStudentId}.`);
+      celebrate();
       await loadData();
+      workQueue.refresh();
     } catch (e) {
       setState("error");
       setNotice(e instanceof Error ? e.message : "Allocation blocked.");
@@ -527,7 +580,7 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
                       >
                         Review Proposal & Allocate →
                       </Button>
-                      {(role === "BID_DESK_ANALYST" || role === "CELL_COORDINATOR" || role === "ADMINISTRATOR") && opportunity.status !== "ALLOCATED" && b.status !== "ALLOCATED" && (
+                      {canAllocate && opportunity.status !== "ALLOCATED" && b.status !== "ALLOCATED" && (
                         <Button
                           variant="primary"
                           className="text-xs"
@@ -659,11 +712,15 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
                       </div>
                     ) : (
                       <div className="overflow-hidden rounded-lg border border-[#E6E6E6] bg-white shadow-inner">
-                        <iframe
-                          src={`${api}/opportunities/${opportunity.id}/bids/${reviewingBid.id || reviewingBid.studentId}/proposal?disposition=inline`}
-                          title="Proposal PDF Document"
-                          className="w-full h-80 border-none"
-                        />
+                        {previewFrameUrl ? (
+                          <iframe
+                            src={previewFrameUrl}
+                            title="Proposal PDF Document"
+                            className="w-full h-80 border-none"
+                          />
+                        ) : (
+                          <div className="grid h-80 place-items-center text-xs font-semibold text-[#666D7A]">Loading document preview…</div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -687,7 +744,7 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
               <Button variant="secondary" onClick={() => setReviewingBid(null)}>
                 Close
               </Button>
-              {(role === "BID_DESK_ANALYST" || role === "CELL_COORDINATOR" || role === "ADMINISTRATOR") && (
+              {canAllocate && (
                 <Button
                   variant="primary"
                   disabled={state === "loading" || reviewingBid.status === "ALLOCATED" || opportunity.status === "ALLOCATED"}

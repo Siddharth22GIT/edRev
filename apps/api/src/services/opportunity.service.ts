@@ -44,6 +44,7 @@ export async function getBidProposalDocumentService(
   filename: string;
   isPdf: boolean;
   isDocx: boolean;
+  studentId: string;
 } | null> {
   let bid: Bid | null = null;
   if (isDbConnected()) {
@@ -109,6 +110,7 @@ export async function getBidProposalDocumentService(
     filename: rawName,
     isPdf,
     isDocx,
+    studentId: bid.studentId,
   };
 }
 

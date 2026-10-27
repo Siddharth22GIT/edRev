@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import type { Role } from "@edurev/types";
+import { PERMISSIONS, type Role } from "@edurev/types";
 import {
   getEarningsService,
   getEarningsSummaryService,
@@ -8,13 +8,8 @@ import {
   verifyEarningService,
 } from "../services/earnings.service.js";
 
-export const AUTHORIZED_INSTITUTIONAL_ROLES: Role[] = [
-  "FACULTY_DIRECTOR",
-  "CELL_COORDINATOR",
-  "ADMINISTRATOR",
-  "DEAN",
-  "PLACEMENT_OFFICE",
-];
+// Roles that may read earnings across all students (see PERMISSIONS in @edurev/types)
+export const AUTHORIZED_INSTITUTIONAL_ROLES: readonly Role[] = PERMISSIONS.EARNINGS_VIEW_ALL;
 
 const errorResponse = (res: Response, message: string, status = 400) =>
   res.status(status).json({ message });

@@ -188,6 +188,9 @@ const hourLogSchema = new Schema<HourLog>(
     remainingHours: { type: Number, required: true },
     status: { type: String, enum: ["NORMAL", "WARNING", "BLOCKED"], required: true },
     overridden: { type: Boolean, default: false },
+    overrideReason: { type: String },
+    overriddenBy: { type: String },
+    overriddenAt: { type: String },
   },
   { timestamps: true }
 );

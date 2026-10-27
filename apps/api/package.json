@@ -8,6 +8,7 @@
     "build": "tsup src/server.ts --format esm --out-dir dist --clean",
     "start": "node dist/server.js",
     "test": "tsx --test \"src/tests/**/*.test.ts\"",
+    "test:mock": "tsx --env-file=src/tests/mock.env --test \"src/tests/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

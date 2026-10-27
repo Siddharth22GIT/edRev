@@ -8,6 +8,7 @@ import {
   updateStudentTierService,
   updateTrainingModuleStatusService,
 } from "../services/student.service.js";
+import { ownStudentId } from "../middleware/auth.middleware.js";
 
 const errorResponse = (res: Response, message: string, status = 400) =>
   res.status(status).json({ message });
@@ -15,10 +16,12 @@ const errorResponse = (res: Response, message: string, status = 400) =>
 const getParam = (param: string | string[] | undefined): string =>
   Array.isArray(param) ? param[0] : param || "";
 
-export async function getStudentsHandler(_req: Request, res: Response): Promise<void> {
+export async function getStudentsHandler(req: Request, res: Response): Promise<void> {
   try {
     const data = await getStudentsService();
-    res.json({ data });
+    const ownId = ownStudentId(req.user);
+    // Students only ever see their own record; institutional roles see the cohort
+    res.json({ data: req.user?.role === "STUDENT" ? data.filter((s) => s.id === ownId) : data });
   } catch (err: any) {
     errorResponse(res, err.message || "Failed to fetch students.", 500);
   }

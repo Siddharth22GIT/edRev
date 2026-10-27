@@ -19,7 +19,7 @@ export interface EarningsEntry { id: string; studentId: string; platformName: st
 export interface EarningsSummary { studentId?: string; totalSubmitted: number; totalVerified: number; totalPending: number; totalRejected: number; count: number; verifiedCount: number; pendingCount: number; rejectedCount: number; currency: string; }
 export interface PlatformAccount { id: string; studentId: string; platform: string; accountIdentifier: string; accountStatus: "ACTIVE" | "INACTIVE"; verificationStatus: VerificationStatus; }
 export interface AcademicSnapshot { studentId: string; cgpa: number; requiredCgpa: number; cgpaStatus: "ELIGIBLE" | "RESTRICTED"; complianceStatus: ComplianceStatus; }
-export interface HourLog { studentId: string; period: string; allowedHours: number; loggedHours: number; remainingHours: number; status: HourStatus; overridden?: boolean; }
+export interface HourLog { studentId: string; period: string; allowedHours: number; loggedHours: number; remainingHours: number; status: HourStatus; overridden?: boolean; overrideReason?: string; overriddenBy?: string; overriddenAt?: string; }
 export interface BlackoutPeriod { id: string; title: string; startDate: string; endDate: string; }
 export interface SafeguardCheck { studentId: string; tierEligible: boolean; cgpaEligible: boolean; hourEligible: boolean; blackoutEligible: boolean; complianceEligible: boolean; eligible: boolean; reasons: string[]; }
 export interface StudentReadinessSummary { student: Student; academic: AcademicSnapshot | null; training: { modules: TrainingModule[]; completedCount: number; totalCount: number; progressPercentage: number; }; hours: HourLog | null; blackoutActive: boolean; safeguardCheck: SafeguardCheck; }
@@ -31,4 +31,7 @@ export interface SettingsSummary { organizationName: string; notificationEmail: 
 export interface User { id: string; name: string; email: string; passwordHash?: string; role: Role; studentId?: string; createdAt?: string; updatedAt?: string; }
 export interface AuthResponse { user: Omit<User, "passwordHash">; token: string; }
 export interface ApiError { message: string; }
+export interface HealthStatus { status: "ok"; service: string; db: "connected" | "mock"; }
+
+export * from "./permissions";
 

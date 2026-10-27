@@ -21,7 +21,7 @@
 ## WEEK 9 — Phase 1: MongoDB Persistence & Architecture (COMPLETED)
 
 - Integrated Mongoose ODM & `dotenv` into `@edurev/api`
-- Implemented modular backend structure (`config/`, `models/`, `repositories/`, `services/`, `controllers/`, `routes/`)
+- Implemented modular backend structure (`config/`, `models/`, `services/`, `controllers/`, `routes/`; services use the Mongoose models directly, with no separate repository layer)
 - Created 13 Mongoose persistence schemas with string ID compatibility
 - Implemented database-level compound unique index `unique(opportunityId, studentId)` for duplicate bid prevention returning HTTP 409 Conflict
 - Created automated database seeder (`seed.ts`) to populate MongoDB with initial dataset on boot
@@ -99,5 +99,15 @@
 - Integrated `DashboardOverview` and `AnalyticsScreen` on Next.js frontend with live API fetching, session context, loading/error states, and live activity chart.
 - Verified workspace with clean `npm run typecheck`, `npm run build`, and `npm run check`.
 
+## WEEK 9 — Phase 8: Access Control Hardening & Consistency (COMPLETED)
 
-
+- Required authentication on every endpoint except `POST /api/auth/login` and `GET /api/health`.
+- Added one shared permission map (`packages/types/src/permissions.ts`) used by both API middleware and UI controls.
+- Scoped student-owned data: students can only read their own profile, readiness, tier, training, safeguards, hours, academic record, bids and proposal documents.
+- Restricted publishing opportunities to Bid Desk Analyst, Cell Coordinator and Administrator.
+- Fixed the hour-cap override trusting a `role` field from the request body; it now uses the signed-in user, allows Faculty Director, Cell Coordinator and Administrator, and records reason, approver and time.
+- Students now always author their own proposals and log only their own hours.
+- Added an authenticated web API client (`useApi`) and a workspace `AuthGate`; proposal documents are downloaded with the session token.
+- Made the in-memory fallback visible (startup banner, `db` field on `/api/health`, "Demo data mode" badge) and added `REQUIRE_DB`.
+- Added `access-control.test.ts` (24 tests), runnable against MongoDB (`npm test`) and in demo data mode (`npm run test:mock --workspace @edurev/api`).
+- Split the large operations and student screen files into one file per screen, without changing behaviour.

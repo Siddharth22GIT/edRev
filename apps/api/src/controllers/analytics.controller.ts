@@ -55,8 +55,10 @@ export async function createProposalHandler(req: Request, res: Response): Promis
       errorResponse(res, "Proposal title is required.");
       return;
     }
-    const student = studentName || req.user?.name || "Student Learner";
-    const authorName = author || req.user?.name || req.user?.role || "Student";
+    // Students always submit under their own name; staff may create proposals on a student's behalf
+    const isStudent = req.user?.role === "STUDENT";
+    const student = isStudent ? req.user!.name : studentName || req.user?.name || "Student Learner";
+    const authorName = isStudent ? req.user!.name : author || req.user?.name || req.user?.role || "Student";
     const data = await createProposalService({
       title,
       studentName: student,

@@ -1,5 +1,10 @@
 import { AppShell } from "@/components/layout/app-shell";
+import { AuthGate } from "@/components/layout/auth-gate";
 
 export default function WorkspaceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AuthGate>
+      <AppShell>{children}</AppShell>
+    </AuthGate>
+  );
 }

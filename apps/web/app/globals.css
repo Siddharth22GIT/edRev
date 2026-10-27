@@ -58,3 +58,114 @@ textarea {
 ::-webkit-scrollbar-thumb:hover {
   background: #9CA3AF;
 }
+
+/* Login page motion */
+@keyframes login-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(28px, -22px, 0) scale(1.1);
+  }
+}
+@keyframes logo-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.55) rotate(-14deg);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.08) rotate(3deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.login-blob {
+  animation: login-float 14s ease-in-out infinite;
+}
+.logo-pop {
+  animation: logo-pop 0.75s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.rise-in {
+  animation: rise-in 0.6s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-blob,
+  .logo-pop,
+  .rise-in {
+    animation: none;
+  }
+}
+
+/* Loading skeleton shimmer */
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+.skeleton {
+  background: linear-gradient(90deg, #eeeeec 25%, #f7f7f6 50%, #eeeeec 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* Page change fade (opacity only) */
+@keyframes page-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* "backwards" (not "both") so nothing lingers after the fade: a lingering animation would create a
+   stacking context and trap fixed-position modals beneath the sticky top bar */
+.page-fade {
+  animation: page-fade 0.35s ease-out backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-fade {
+    animation: none;
+  }
+}
+
+/* Side panel slide-in */
+@keyframes drawer-in {
+  from {
+    transform: translateX(32px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.drawer-in {
+  animation: drawer-in 0.28s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer-in {
+    animation: none;
+  }
+}

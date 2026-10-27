@@ -3,27 +3,39 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getOpportunity, opportunities as mockOpportunities } from "@edurev/mock-data";
-import type { Opportunity } from "@edurev/types";
+import { can, type Opportunity, type Tier } from "@edurev/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { BidDesk } from "@/components/opportunities/bid-desk";
+import { useApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useQuickAction } from "@/lib/quick-actions";
+import { useToast } from "@/lib/toast";
 import { IconBriefcase, IconPlus, IconCheckCircle, IconArrowRight, IconBuilding } from "@/components/ui/icons";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+type OpportunityFilter = "ALL" | "OPEN" | "UNDER_REVIEW" | "ALLOCATED" | "MY_TIER";
+
+const tierRank = (tier: Tier) => Number(tier.split("_")[1]);
 
 export function OpportunitiesScreen() {
-  const { getAuthHeaders } = useAuth();
+  const { user } = useAuth();
+  const { apiFetch } = useApi();
+  const { toast } = useToast();
+  const canCreate = can(user?.role, "OPPORTUNITY_CREATE");
   const [oppList, setOppList] = useState<Opportunity[]>(mockOpportunities);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<OpportunityFilter>("ALL");
+  const [myTier, setMyTier] = useState<Tier | null>(null);
+  const isStudent = user?.role === "STUDENT";
 
   // Form states
   const [project, setProject] = useState("");
@@ -37,7 +49,7 @@ export function OpportunitiesScreen() {
 
   const loadOpportunities = async () => {
     try {
-      const res = await fetch(`${API_BASE}/opportunities`);
+      const res = await apiFetch("/opportunities");
       if (res.ok) {
         const json = await res.json();
         if (json?.data && Array.isArray(json.data) && json.data.length > 0) {
@@ -53,17 +65,44 @@ export function OpportunitiesScreen() {
       setOppList(mockOpportunities);
     } catch {
       setOppList(mockOpportunities);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     loadOpportunities();
+    // Students get a "Matches my tier" filter; the API returns only their own record
+    if (isStudent) {
+      apiFetch("/students")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((json) => setMyTier(json?.data?.[0]?.tier ?? null))
+        .catch(() => setMyTier(null));
+    }
   }, []);
+
+  const filters: { id: OpportunityFilter; label: string }[] = [
+    { id: "ALL", label: "All" },
+    { id: "OPEN", label: "Open" },
+    { id: "UNDER_REVIEW", label: "Under review" },
+    { id: "ALLOCATED", label: "Allocated" },
+    ...(isStudent && myTier ? [{ id: "MY_TIER" as const, label: "Matches my tier" }] : []),
+  ];
+  const visible = oppList.filter((o) => {
+    if (filter === "ALL") return true;
+    if (filter === "MY_TIER") return Boolean(myTier) && o.status !== "ALLOCATED" && o.status !== "CLOSED" && tierRank(myTier!) >= tierRank(o.requiredTier);
+    return o.status === filter;
+  });
+
+  // "+ New → Add an opportunity" and the command bar open the existing create form
+  useQuickAction("new-opportunity", () => {
+    if (canCreate) setIsModalOpen(true);
+  });
 
   const handleCreateOpportunity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!project || !company || !budget) {
-      alert("Please fill in Project title, Company, and Budget.");
+      toast("Please fill in Project title, Company, and Budget.", "error");
       return;
     }
 
@@ -76,12 +115,8 @@ export function OpportunitiesScreen() {
       .filter(Boolean);
 
     try {
-      const res = await fetch(`${API_BASE}/opportunities`, {
+      const res = await apiFetch("/opportunities", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
         body: JSON.stringify({
           title: project,
           project,
@@ -112,7 +147,7 @@ export function OpportunitiesScreen() {
       setBudget("18000");
       setDescription("");
     } catch (err: any) {
-      alert(err.message || "Could not create opportunity.");
+      toast(err.message || "Could not create opportunity.", "error");
     } finally {
       setSubmitting(false);
     }
@@ -125,10 +160,12 @@ export function OpportunitiesScreen() {
         title="Institutional Opportunities"
         description="Curated institutional work orders, client deliverables, and student placement pipeline."
         action={
-          <Button variant="primary" onClick={() => setIsModalOpen(true)}>
-            <IconPlus size={16} />
-            <span>Add Opportunity</span>
-          </Button>
+          canCreate ? (
+            <Button variant="primary" onClick={() => setIsModalOpen(true)}>
+              <IconPlus size={16} />
+              <span>Add Opportunity</span>
+            </Button>
+          ) : undefined
         }
       />
 
@@ -142,50 +179,79 @@ export function OpportunitiesScreen() {
         </div>
       )}
 
-      {oppList.length === 0 ? (
-        <EmptyState description="New opportunities will appear here once published." title="No opportunities yet" />
+      {/* Filter chips */}
+      <div className="flex flex-wrap gap-2">
+        {filters.map((f) => {
+          const count = f.id === "ALL" ? oppList.length : oppList.filter((o) => (f.id === "MY_TIER" ? false : o.status === f.id)).length;
+          return (
+            <button
+              aria-pressed={filter === f.id}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition ${
+                filter === f.id ? "bg-[#30343B] text-white" : "bg-white text-[#666D7A] ring-1 ring-[#E6E6E6] hover:text-[#30343B] hover:ring-[#D1D5DB]"
+              }`}
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              type="button"
+            >
+              {f.label}
+              {f.id !== "MY_TIER" && !loading && <span className="ml-1.5 opacity-60">{count}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {loading ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }, (_, i) => (
+            <Card className="space-y-3 p-5" key={i}>
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/3" />
+              <Skeleton className="h-10 w-full" />
+            </Card>
+          ))}
+        </div>
+      ) : visible.length === 0 ? (
+        <EmptyState
+          description={filter === "ALL" ? "New opportunities will appear here once published." : "Nothing matches this filter right now."}
+          icon={<IconBriefcase size={22} />}
+          title={filter === "ALL" ? "No opportunities yet" : "No matches"}
+        />
       ) : (
-        <Card className="overflow-hidden border-[#E6E6E6] bg-white shadow-card">
-          <DataTable columns={["Opportunity", "Category", "Deadline", "Budget", "Match", "Status", ""]}>
-            {oppList.map((opportunity) => (
-              <tr className="transition hover:bg-[#F7F7F6]/80" key={opportunity.id}>
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FEF6EE] text-[#C27803] ring-1 ring-[#F2A65A]/30">
-                      <IconBriefcase size={18} />
-                    </div>
-                    <div>
-                      <Link className="font-bold text-[#30343B] hover:text-[#3978B8] transition" href={`/opportunities/${opportunity.id}`}>
-                        {opportunity.project}
-                      </Link>
-                      <p className="mt-0.5 flex items-center gap-1 text-xs text-[#666D7A]">
-                        <IconBuilding size={12} />
-                        {opportunity.company}
-                      </p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-5 py-4 text-xs font-semibold text-[#666D7A]">{opportunity.category}</td>
-                <td className="whitespace-nowrap px-5 py-4 text-xs text-[#666D7A]">{formatDate(opportunity.deadline)}</td>
-                <td className="whitespace-nowrap px-5 py-4 text-sm font-bold text-[#30343B]">{formatCurrency(opportunity.budget)}</td>
-                <td className="whitespace-nowrap px-5 py-4">
-                  <Badge tone="orange">{opportunity.matchScore || 95}% Match</Badge>
-                </td>
-                <td className="px-5 py-4"><StatusBadge status={opportunity.status} /></td>
-                <td className="px-5 py-4 text-right">
-                  <Link
-                    aria-label={`View ${opportunity.project}`}
-                    className="inline-flex items-center gap-1 text-xs font-bold text-[#3978B8] hover:text-[#2F659C] transition"
-                    href={`/opportunities/${opportunity.id}`}
-                  >
-                    <span>View</span>
-                    <IconArrowRight size={14} />
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </DataTable>
-        </Card>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {visible.map((opportunity) => (
+            <Link
+              className="group flex flex-col rounded-xl border border-[#E6E6E6] bg-white p-5 shadow-card transition hover:-translate-y-0.5 hover:border-[#FBD7B3] hover:shadow-cardHover"
+              href={`/opportunities/${opportunity.id}`}
+              key={opportunity.id}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#FEF6EE] text-[#C27803] ring-1 ring-[#FBD7B3]">
+                  <IconBriefcase size={18} />
+                </span>
+                <StatusBadge status={opportunity.status} />
+              </div>
+              <h3 className="mt-4 font-bold leading-snug text-[#30343B] group-hover:text-[#3978B8]">{opportunity.project}</h3>
+              <p className="mt-1 flex items-center gap-1 text-xs text-[#666D7A]">
+                <IconBuilding size={12} />
+                {opportunity.company} · {opportunity.category}
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+                <Badge tone="blue">{opportunity.requiredTier.replace("_", " ")}+</Badge>
+                <Badge tone="orange">{opportunity.matchScore || 95}% match</Badge>
+              </div>
+              <div className="mt-auto flex items-end justify-between border-t border-[#E6E6E6] pt-4 mt-5">
+                <div>
+                  <p className="text-lg font-extrabold text-[#30343B]">{formatCurrency(opportunity.budget)}</p>
+                  <p className="text-[11px] text-[#666D7A]">Due {formatDate(opportunity.deadline)}</p>
+                </div>
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-[#3978B8] group-hover:text-[#C27803]">
+                  {isStudent && opportunity.status !== "ALLOCATED" && opportunity.status !== "CLOSED" ? "Bid" : "View"}
+                  <IconArrowRight size={14} />
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
       )}
 
       {/* CREATE OPPORTUNITY MODAL */}
@@ -346,12 +412,13 @@ export function OpportunitiesScreen() {
 }
 
 export function OpportunityDetailScreen({ id }: { id: string }) {
+  const { apiFetch } = useApi();
   const [opp, setOpp] = useState<Opportunity | null>(() => getOpportunity(id) || null);
   const [loading, setLoading] = useState(!opp);
 
   useEffect(() => {
     if (!opp) {
-      fetch(`${API_BASE}/opportunities/${id}`)
+      apiFetch(`/opportunities/${id}`)
         .then((res) => res.json())
         .then((json) => {
           if (json?.data) {

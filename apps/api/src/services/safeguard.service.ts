@@ -1,4 +1,4 @@
-import type { BlackoutPeriod, HourLog, Safeguard, SafeguardCheck, Student, Tier } from "@edurev/types";
+import { can, type BlackoutPeriod, type HourLog, type Role, type Safeguard, type SafeguardCheck, type Student, type Tier } from "@edurev/types";
 import {
   blackouts as mockBlackouts,
   checkSafeguards as mockCheckSafeguards,
@@ -93,13 +93,23 @@ export async function getBlackoutPeriodsService(): Promise<BlackoutPeriod[]> {
   return mockBlackouts;
 }
 
-export async function overrideHourCapService(studentId: string, role: string, reason: string): Promise<HourLog> {
-  if (!reason || !["FACULTY_DIRECTOR", "CELL_COORDINATOR", "ADMINISTRATOR"].includes(role)) {
+export async function overrideHourCapService(
+  studentId: string,
+  role: Role,
+  reason: string,
+  approverId?: string
+): Promise<HourLog> {
+  if (!reason || !can(role, "HOUR_CAP_OVERRIDE")) {
     const err: any = new Error("An authorized Faculty Director or Cell Coordinator reason is required.");
     err.statusCode = 400;
     throw err;
   }
 
+  const audit = {
+    overrideReason: reason,
+    overriddenBy: approverId ? `${role}:${approverId}` : role,
+    overriddenAt: new Date().toISOString(),
+  };
 
   if (isDbConnected()) {
     const log = await HourLogModel.findOne({ studentId });
@@ -112,6 +122,7 @@ export async function overrideHourCapService(studentId: string, role: string, re
     log.status = "WARNING";
     log.overridden = true;
     log.remainingHours = 1;
+    log.set(audit);
     await log.save();
 
     return stripMongoFields<HourLog>(log.toObject());
@@ -122,6 +133,7 @@ export async function overrideHourCapService(studentId: string, role: string, re
     log.status = "WARNING";
     log.overridden = true;
     log.remainingHours = 1;
+    Object.assign(log, audit);
     return log;
   }
   throw new Error("Hour log not found.");

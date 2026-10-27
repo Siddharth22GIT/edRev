@@ -1,5 +1,7 @@
 import cors from "cors";
 import express from "express";
+import type { HealthStatus } from "@edurev/types";
+import { isDbConnected } from "./config/db.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import earningsRoutes from "./routes/earnings.routes.js";
@@ -10,13 +12,20 @@ import studentRoutes from "./routes/student.routes.js";
 export function createApp() {
   const app = express();
 
-  app.use(cors({ origin: process.env.WEB_ORIGIN ?? "http://localhost:3000" }));
+  app.use(
+    cors({
+      origin: process.env.WEB_ORIGIN ?? "http://localhost:3000",
+      // Lets the web app read the filename of downloaded proposal documents
+      exposedHeaders: ["Content-Disposition"],
+    })
+  );
   app.use(express.json({ limit: "15mb" }));
   app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
-  // Health check endpoint
+  // Health check endpoint (public). `db: "mock"` means the API is serving in-memory demo data.
   app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", service: "edurev-api" });
+    const body: HealthStatus = { status: "ok", service: "edurev-api", db: isDbConnected() ? "connected" : "mock" };
+    res.json(body);
   });
 
   // Mount feature routers under /api

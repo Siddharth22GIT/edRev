@@ -9,6 +9,8 @@ import {
   getOpportunityByIdService,
   submitBidService,
 } from "../services/opportunity.service.js";
+import { can } from "@edurev/types";
+import { ownStudentId } from "../middleware/auth.middleware.js";
 
 const errorResponse = (res: Response, message: string, status = 400) =>
   res.status(status).json({ message });
@@ -43,7 +45,9 @@ export async function getBidsForOpportunityHandler(req: Request, res: Response):
   try {
     const id = getParam(req.params.id);
     const bids = await getBidsForOpportunityService(id);
-    res.json({ data: bids });
+    // Reviewers see every bid; a student only sees their own bid on the opportunity
+    const visible = can(req.user?.role, "BID_REVIEW") ? bids : bids.filter((b) => b.studentId === ownStudentId(req.user));
+    res.json({ data: visible });
   } catch (err: any) {
     errorResponse(res, err.message || "Failed to fetch bids.", 500);
   }
@@ -57,6 +61,10 @@ export async function getBidProposalDocumentHandler(req: Request, res: Response)
     const doc = await getBidProposalDocumentService(opportunityId, bidId);
     if (!doc) {
       errorResponse(res, "Proposal document not found.", 404);
+      return;
+    }
+    if (!can(req.user?.role, "BID_REVIEW") && doc.studentId !== ownStudentId(req.user)) {
+      errorResponse(res, "Forbidden: You can only access your own proposal documents.", 403);
       return;
     }
 
@@ -116,7 +124,7 @@ export async function submitBidHandler(req: Request, res: Response): Promise<voi
   const opportunityId = getParam(req.params.id);
 
   // Authenticated student identity enforcement (Do NOT trust frontend body studentId override)
-  const studentId = req.user?.studentId || req.user?.id || req.body.studentId;
+  const studentId = req.user?.studentId || req.user?.id;
 
   if (!studentId) {
     errorResponse(res, "Authenticated student identity missing.", 401);
