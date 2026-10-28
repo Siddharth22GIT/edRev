@@ -9,11 +9,11 @@ import { Button } from "@/components/ui/button";
 import { IconChevronDown, IconMenu, IconPlus, IconSearch } from "@/components/ui/icons";
 import { API_BASE } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { roleLabels } from "@/lib/navigation";
 import { quickActionsFor, runQuickAction } from "@/lib/quick-actions";
+import { ProfileMenu } from "./profile-menu";
 
 export function Topbar({ onMenuClick, onOpenSearch }: { onMenuClick: () => void; onOpenSearch: () => void }) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [demoMode, setDemoMode] = useState(false);
@@ -38,15 +38,6 @@ export function Topbar({ onMenuClick, onOpenSearch }: { onMenuClick: () => void;
       .then((health: HealthStatus | null) => setDemoMode(health?.db === "mock"))
       .catch(() => setDemoMode(false));
   }, []);
-
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "U";
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-[#E6E6E6] bg-white/95 px-4 backdrop-blur lg:px-8 shadow-xs">
@@ -112,26 +103,7 @@ export function Topbar({ onMenuClick, onOpenSearch }: { onMenuClick: () => void;
           </span>
         )}
         {user ? (
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2.5 border-l border-[#E6E6E6] pl-3">
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-[#FEF6EE] text-xs font-black text-[#C27803] ring-2 ring-[#FBD7B3]">
-                {initials}
-              </span>
-              <div className="hidden sm:block">
-                <p className="text-sm font-bold leading-tight text-[#30343B]">{user.name}</p>
-                <div className="mt-0.5">
-                  <Badge tone="blue">{roleLabels[user.role] || user.role}</Badge>
-                </div>
-              </div>
-            </div>
-            <Button
-              className="px-3 py-1.5 text-xs"
-              onClick={logout}
-              variant="secondary"
-            >
-              Logout
-            </Button>
-          </div>
+          <ProfileMenu />
         ) : (
           <Link
             className="rounded-xl bg-[#F2A65A] px-4 py-2 text-xs font-bold text-[#30343B] shadow-sm transition hover:bg-[#E59443] ring-1 ring-[#FBD7B3]"

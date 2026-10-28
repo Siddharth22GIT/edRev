@@ -1,4 +1,4 @@
-import type { AcademicSnapshot, HourLog, SafeguardCheck, Student, Tier, TierSummary, TrainingModule } from "@edurev/types";
+import type { AcademicSnapshot, HourLog, SafeguardCheck, Student, StudentProfileUpdate, Tier, TierSummary, TrainingModule } from "@edurev/types";
 import {
   academicSnapshots as mockAcademicSnapshots,
   getStudent as mockGetStudent,
@@ -195,6 +195,54 @@ export async function updateStudentTierService(id: string, newTier: Tier): Promi
   }
   student.tier = newTier;
   return student;
+}
+
+/**
+ * Applies a student's own profile edits. Only bio, phone, location and skills can change here;
+ * tier, CGPA, earnings and identity fields are never touched (input is validated by the controller).
+ */
+export async function updateStudentProfileService(id: string, update: StudentProfileUpdate): Promise<Student> {
+  const fields: StudentProfileUpdate = {};
+  for (const key of ["bio", "phone", "location", "skills"] as const) {
+    if (update[key] !== undefined) (fields as any)[key] = update[key];
+  }
+
+  if (isDbConnected()) {
+    const student = await StudentModel.findOne({ id });
+    if (!student) throw notFound();
+    student.set(fields);
+    await student.save();
+    return stripMongoFields<Student>(student.toObject());
+  }
+
+  const student = mockStudents.find((s) => s.id === id);
+  if (!student) throw notFound();
+  Object.assign(student, fields);
+  return student;
+}
+
+/** Sets (or, with null, removes) a student's profile photo. The data URL is validated by the controller. */
+export async function updateStudentPhotoService(id: string, photoUrl: string | null): Promise<Student> {
+  if (isDbConnected()) {
+    const student = await StudentModel.findOne({ id });
+    if (!student) throw notFound();
+    if (photoUrl) student.set({ photoUrl });
+    else student.set({ photoUrl: undefined });
+    await student.save();
+    return stripMongoFields<Student>(student.toObject());
+  }
+
+  const student = mockStudents.find((s) => s.id === id);
+  if (!student) throw notFound();
+  if (photoUrl) student.photoUrl = photoUrl;
+  else delete student.photoUrl;
+  return student;
+}
+
+function notFound() {
+  const err: any = new Error("Student not found.");
+  err.statusCode = 404;
+  return err;
 }
 
 function stripMongoFields<T>(obj: any): T {

@@ -8,7 +8,9 @@ export type VerificationStatus = "PENDING" | "VERIFIED" | "REJECTED";
 export type HourStatus = "NORMAL" | "WARNING" | "BLOCKED";
 export type ComplianceStatus = "COMPLIANT" | "WARNING" | "NON_COMPLIANT";
 export interface Opportunity { id: string; title: string; project: string; description: string; client: string; company: string; category: string; skills: string[]; budget: number; currency: string; deadline: string; status: OpportunityStatus; requiredTier: Tier; estimatedHours: number; numberOfBids: number; slaDeadline: string; matchScore: number; deliverables: string[]; updatedAt: string; allocatedStudentId?: string; }
-export interface Student { id: string; name: string; email: string; avatarInitials: string; program: string; course: string; year: number; tier: Tier; status: StudentStatus; skills: string[]; trainingProgress: number; progress: number; cgpa: number; joinedAt: string; projectsCompleted: number; earnings: number; mentor: string; }
+export interface Student { id: string; name: string; email: string; avatarInitials: string; program: string; course: string; year: number; tier: Tier; status: StudentStatus; skills: string[]; trainingProgress: number; progress: number; cgpa: number; joinedAt: string; projectsCompleted: number; earnings: number; mentor: string; photoUrl?: string; bio?: string; phone?: string; location?: string; }
+/** Fields a student may edit on their own profile. Tier, CGPA, earnings and identity are never editable here. */
+export interface StudentProfileUpdate { bio?: string; phone?: string; location?: string; skills?: string[]; }
 export interface TierSummary { studentId: string; currentTier: Tier; nextTier: Tier | null; progressToNextTier: number; requirements: { label: string; completed: boolean }[]; completedTraining: number; }
 export interface TrainingModule { id: string; title: string; description: string; status: "COMPLETED" | "IN_PROGRESS" | "NOT_STARTED"; completionPercentage: number; }
 export interface Bid { id: string; opportunityId: string; studentId: string; proposedAmount: number; estimatedCompletionTime: string; message: string; relevantSkills: string; proposalPdfUrl?: string; proposalPdfName?: string; status: BidStatus; createdAt: string; }
@@ -28,7 +30,10 @@ export interface AnalyticsSnapshot { placementRate: number; proposalWinRate: num
 export interface Proposal { id: string; title: string; studentName: string; opportunityId: string; author: string; status: "DRAFT" | "IN_REVIEW" | "APPROVED" | "SUBMITTED"; reviewStatus: "PENDING" | "APPROVED"; version: number; submittedAt: string | null; value: number; }
 export interface Safeguard { id: string; name: string; description: string; status: "healthy" | "attention" | "blocked"; owner: string; lastCheckedAt: string; }
 export interface SettingsSummary { organizationName: string; notificationEmail: string; weeklyDigestEnabled: boolean; timezone: string; }
-export interface User { id: string; name: string; email: string; passwordHash?: string; role: Role; studentId?: string; createdAt?: string; updatedAt?: string; }
+/** Personal app preferences, saved per account. */
+export interface UserPreferences { celebrations: boolean; reduceMotion: boolean; showBadges: boolean; }
+export const DEFAULT_USER_PREFERENCES: UserPreferences = { celebrations: true, reduceMotion: false, showBadges: true };
+export interface User { id: string; name: string; email: string; passwordHash?: string; role: Role; studentId?: string; createdAt?: string; updatedAt?: string; preferences?: UserPreferences; }
 export interface AuthResponse { user: Omit<User, "passwordHash">; token: string; }
 export interface ApiError { message: string; }
 export interface HealthStatus { status: "ok"; service: string; db: "connected" | "mock"; }

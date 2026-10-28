@@ -28,6 +28,7 @@ export const testUsers = {
   guild: { id: "usr-guild", name: "Vikram Malhotra", email: "guild@revalanche.local", role: "GUILD_LEAD" },
   coordinator: { id: "usr-coordinator", name: "Ananya Roy", email: "coordinator@revalanche.local", role: "CELL_COORDINATOR" },
   faculty: { id: "usr-faculty", name: "Dr. Sarah Jenkins", email: "faculty@revalanche.local", role: "FACULTY_DIRECTOR" },
+  placement: { id: "usr-placement", name: "Placement Office", email: "placement@revalanche.local", role: "PLACEMENT_OFFICE" },
   dean: { id: "usr-dean", name: "Dean", email: "dean@revalanche.local", role: "DEAN" },
   admin: { id: "usr-admin", name: "System Administrator", email: "admin@revalanche.local", role: "ADMINISTRATOR" },
 } satisfies Record<string, TestUser>;

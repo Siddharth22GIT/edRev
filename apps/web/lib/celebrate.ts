@@ -1,5 +1,7 @@
 "use client";
 
+import { celebrationsEnabled, prefersReducedMotion } from "@/lib/motion";
+
 const COLORS = ["#F2A65A", "#FBD7B3", "#FEF6EE", "#3978B8", "#C2DCF2", "#E59443"];
 
 /**
@@ -7,7 +9,7 @@ const COLORS = ["#F2A65A", "#FBD7B3", "#FEF6EE", "#3978B8", "#C2DCF2", "#E59443"
  * a completed action (bid submitted, work allocated, earning verified). Skipped under reduced motion.
  */
 export function celebrate() {
-  if (typeof window === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (typeof window === "undefined" || prefersReducedMotion() || !celebrationsEnabled()) return;
 
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");

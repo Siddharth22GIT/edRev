@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { can, type Permission, type Role } from "@edurev/types";
 
-export type QuickActionId = "new-earning" | "new-opportunity" | "new-proposal";
+export type QuickActionId = "new-earning" | "new-opportunity" | "new-proposal" | "change-photo";
 
 export interface QuickAction {
   id: QuickActionId;
@@ -30,7 +30,7 @@ const EVENT = "edurev:quick-action";
  * Triggers a quick action: if the target page is already open it is told directly,
  * otherwise we navigate there with `?action=<id>` and the page picks it up on mount.
  */
-export function runQuickAction(action: QuickAction, pathname: string, push: (href: string) => void) {
+export function runQuickAction(action: Pick<QuickAction, "id" | "path">, pathname: string, push: (href: string) => void) {
   if (pathname === action.path) {
     window.dispatchEvent(new CustomEvent(EVENT, { detail: action.id }));
   } else {

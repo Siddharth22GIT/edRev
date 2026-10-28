@@ -1,10 +1,13 @@
 import { Router } from "express";
 import {
+  deleteStudentPhotoHandler,
   getStudentByIdHandler,
   getStudentReadinessHandler,
   getStudentsHandler,
   getStudentTierHandler,
   getStudentTrainingHandler,
+  updateStudentPhotoHandler,
+  updateStudentProfileHandler,
   updateStudentTierHandler,
   updateTrainingModuleStatusHandler,
 } from "../controllers/student.controller.js";
@@ -21,6 +24,11 @@ router.get("/:id/training", authenticate, requireSelfOrPermission("STUDENT_RECOR
 
 // Interactive training update (the student themself, or a mentor/coordinator/faculty/admin)
 router.patch("/:id/training/:moduleId", authenticate, requireSelfOrPermission("STUDENT_SUPERVISE"), updateTrainingModuleStatusHandler);
+
+// Own profile details and photo (the student themself, or an administrator)
+router.patch("/:id/profile", authenticate, requireSelfOrPermission("PROFILE_EDIT_ANY"), updateStudentProfileHandler);
+router.put("/:id/photo", authenticate, requireSelfOrPermission("PROFILE_EDIT_ANY"), updateStudentPhotoHandler);
+router.delete("/:id/photo", authenticate, requireSelfOrPermission("PROFILE_EDIT_ANY"), deleteStudentPhotoHandler);
 
 // Admin-only Tier update endpoint
 router.patch("/:id/tier", authenticate, requirePermission("TIER_UPDATE"), updateStudentTierHandler);

@@ -1,12 +1,20 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import type { AuthResponse, User } from "@edurev/types";
+import { DEFAULT_USER_PREFERENCES, type AuthResponse, type User, type UserPreferences } from "@edurev/types";
 import { isDbConnected } from "../config/db.js";
 import { UserModel } from "../models/index.js";
 import { DEV_DEFAULT_PASSWORD, seedUsersList } from "../utils/seed.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "revalanche_dev_jwt_secret_key_change_in_production";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+
+// Demo data mode keeps preference changes in memory (they reset on restart, like all mock data)
+const mockPreferences = new Map<string, Partial<UserPreferences>>();
+
+function withPreferences<T extends { id: string; preferences?: Partial<UserPreferences> }>(user: T): T & { preferences: UserPreferences } {
+  const stored = isDbConnected() ? user.preferences : mockPreferences.get(user.id);
+  return { ...user, preferences: { ...DEFAULT_USER_PREFERENCES, ...(stored ?? {}) } };
+}
 
 // Pre-calculate hash for mock/fallback mode
 let mockHashCache: string | null = null;
@@ -58,7 +66,7 @@ export async function loginService(email: string, password: string): Promise<Aut
   const { passwordHash: _, ...safeUser } = user;
   return {
     token,
-    user: safeUser,
+    user: withPreferences(safeUser),
   };
 }
 
@@ -84,7 +92,58 @@ export async function getMeService(userId: string): Promise<Omit<User, "password
   }
 
   const { passwordHash: _, ...safeUser } = user;
-  return safeUser;
+  return withPreferences(safeUser);
+}
+
+/** Changes the signed-in user's password after checking the current one. Not available on demo data. */
+export async function changePasswordService(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+  if (!isDbConnected()) {
+    const err: any = new Error("Passwords can't be changed in demo data mode (no database is connected).");
+    err.statusCode = 503;
+    throw err;
+  }
+
+  const user = await UserModel.findOne({ id: userId });
+  if (!user) {
+    const err: any = new Error("User not found.");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const matches = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!matches) {
+    const err: any = new Error("Your current password is incorrect.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  user.passwordHash = await bcrypt.hash(newPassword, 10);
+  await user.save();
+}
+
+/** Saves the signed-in user's personal preferences (only known keys, validated by the controller). */
+export async function updatePreferencesService(userId: string, update: Partial<UserPreferences>): Promise<UserPreferences> {
+  if (isDbConnected()) {
+    const user = await UserModel.findOne({ id: userId });
+    if (!user) {
+      const err: any = new Error("User not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+    const current = user.preferences?.toObject?.() ?? user.preferences ?? {};
+    user.set("preferences", { ...DEFAULT_USER_PREFERENCES, ...current, ...update });
+    await user.save();
+    return { ...DEFAULT_USER_PREFERENCES, ...user.preferences.toObject() };
+  }
+
+  if (!seedUsersList.some((u) => u.id === userId)) {
+    const err: any = new Error("User not found.");
+    err.statusCode = 404;
+    throw err;
+  }
+  const merged = { ...DEFAULT_USER_PREFERENCES, ...(mockPreferences.get(userId) ?? {}), ...update };
+  mockPreferences.set(userId, merged);
+  return merged;
 }
 
 export function verifyJwtToken(token: string): any {

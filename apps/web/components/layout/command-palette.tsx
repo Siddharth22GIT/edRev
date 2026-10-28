@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { Opportunity, Student } from "@edurev/types";
-import { IconArrowRight, IconBriefcase, IconPlus, IconSearch, IconSettings, IconStudents } from "@/components/ui/icons";
+import { IconArrowRight, IconBriefcase, IconPlus, IconSearch, IconSettings, IconStudents, IconUser } from "@/components/ui/icons";
 import { useApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { navigationFor } from "@/lib/navigation";
+import { navigationFor, settingsLinksFor } from "@/lib/navigation";
 import { quickActionsFor, runQuickAction } from "@/lib/quick-actions";
 
 interface Entry {
@@ -77,7 +77,14 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         icon: <item.icon size={16} />,
         run: go(item.href),
       })),
-      { id: "page-/settings", group: "Pages", label: "Settings", icon: <IconSettings size={16} />, run: go("/settings") },
+      { id: "page-/profile", group: "Pages", label: "My profile", hint: "Photo, skills and details", icon: <IconUser size={16} />, run: go("/profile") },
+      ...settingsLinksFor(role).map<Entry>((link) => ({
+        id: `page-${link.href}`,
+        group: "Pages",
+        label: link.label,
+        icon: <IconSettings size={16} />,
+        run: go(link.href),
+      })),
       ...students.map<Entry>((s) => ({
         id: `student-${s.id}`,
         group: "Students",

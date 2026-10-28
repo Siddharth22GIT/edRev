@@ -169,3 +169,11 @@ textarea {
     animation: none;
   }
 }
+
+/* "Reduce animations" from Account settings (in addition to the OS-level preference) */
+html[data-reduce-motion="true"] *,
+html[data-reduce-motion="true"] *::before,
+html[data-reduce-motion="true"] *::after {
+  animation: none !important;
+  transition: none !important;
+}

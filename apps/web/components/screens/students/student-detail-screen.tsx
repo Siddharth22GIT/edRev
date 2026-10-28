@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { can, type Student, type StudentReadinessSummary, type Tier, type TrainingModule } from "@edurev/types";
 import { getStudent } from "@edurev/mock-data";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -129,8 +130,8 @@ export function StudentDetailScreen({ id }: { id: string }) {
 
   return (
     <div className="space-y-7">
-      <Link className="inline-flex items-center gap-1.5 text-xs font-bold text-[#666D7A] hover:text-[#3978B8] transition" href="/students">
-        ← All students
+      <Link className="inline-flex items-center gap-1.5 text-xs font-bold text-[#666D7A] hover:text-[#3978B8] transition" href={user?.role === "STUDENT" ? "/profile" : "/students"}>
+        {user?.role === "STUDENT" ? "← My profile" : "← All students"}
       </Link>
       <PageHeader
         eyebrow={student.program}
@@ -151,9 +152,7 @@ export function StudentDetailScreen({ id }: { id: string }) {
         <Card className="p-6 xl:col-span-2 space-y-6 border-[#E6E6E6] bg-white shadow-card">
           <div className="flex flex-col gap-4 border-b border-[#E6E6E6] pb-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
-              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-[#FEF6EE] text-lg font-bold text-[#C27803] ring-2 ring-[#F2A65A]/40">
-                {student.avatarInitials}
-              </span>
+              <Avatar initials={student.avatarInitials} name={student.name} photoUrl={student.photoUrl} ring size={60} />
               <div>
                 <p className="font-bold text-[#30343B] text-base">{student.name} — Student Readiness View</p>
                 <div className="mt-2 flex flex-wrap gap-2">

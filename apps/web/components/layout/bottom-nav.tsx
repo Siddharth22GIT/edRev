@@ -23,7 +23,7 @@ export function BottomNav({ onOpenSearch, onOpenMenu }: { onOpenSearch: () => vo
     >
       {items.map((item) => {
         const current = isCurrentRoute(pathname, item.href);
-        const count = counts[item.href] ?? 0;
+        const count = user?.preferences?.showBadges === false ? 0 : counts[item.href] ?? 0;
         return (
           <Link className={`${tab} ${current ? "text-[#C27803]" : "text-[#8C93A0]"}`} href={item.href} key={item.href}>
             <span className="relative">

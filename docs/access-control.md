@@ -32,6 +32,9 @@ Both sides read the same lists, so a button can never appear for a role the API 
 | `EARNINGS_SUBMIT` | Student | `POST /earnings` |
 | `EARNINGS_VIEW_ALL` | Faculty Director, Cell Coordinator, Administrator, Dean, Placement Office | `GET /earnings`, `/earnings/summary`, `/platform-accounts` across students |
 | `EARNINGS_VERIFY` | Faculty Director, Cell Coordinator, Administrator, Dean | `PATCH /earnings/:id/verify` |
+| `PROFILE_EDIT_ANY` | Administrator | Edit any student's profile details and photo (students may always edit their own) |
+| `SETTINGS_MANAGE` | Administrator | `PUT /settings` (institution-wide settings) |
+| `ANALYTICS_VIEW` | All staff | `GET /analytics`, `GET /dashboard` (programme reporting is not student-facing) |
 | `PROPOSAL_CREATE` | All roles | `POST /proposals` (a student is always recorded as the author) |
 
 ## Endpoint rules
@@ -45,8 +48,14 @@ Both sides read the same lists, so a button can never appear for a role the API 
 | `GET /students/:id`, `/readiness`, `/tier`, `/training` | The student themself, or staff |
 | `PATCH /students/:id/training/:moduleId` | The student themself, or `STUDENT_SUPERVISE` |
 | `GET /safeguards/:studentId`, `/hours/:studentId`, `/academic/:studentId` | The student themself, or staff |
+| `PATCH /students/:id/profile` | The student themself, or `PROFILE_EDIT_ANY`. Only `bio`, `phone`, `location`, `skills` are accepted; tier, CGPA, earnings and identity are ignored |
+| `PUT` / `DELETE /students/:id/photo` | The student themself, or `PROFILE_EDIT_ANY`. PNG, JPEG or WebP data URL, max 512 KB, bytes must match the declared type |
 | `POST /hours` | Student: own hours only (identity from token). Supervisors: must name a `studentId` |
-| `GET /safeguards`, `/blackouts`, `/settings`, `/proposals`, `/dashboard`, `/analytics` | Any signed-in user |
+| `GET /safeguards`, `/blackouts`, `/settings`, `/proposals` | Any signed-in user |
+| `GET /dashboard`, `/analytics` | `ANALYTICS_VIEW` (staff) |
+| `PUT /settings` | `SETTINGS_MANAGE` (Administrator). Validates name, email, IANA timezone and digest flag |
+| `POST /auth/password` | The signed-in user only; current password required; new password 8–128 chars with a letter and a number. 503 in demo data mode |
+| `PATCH /auth/me/preferences` | The signed-in user only; `celebrations`, `reduceMotion`, `showBadges` (booleans) |
 
 ## Identity rules
 

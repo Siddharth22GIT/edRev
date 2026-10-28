@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { RequirePermission } from "@/components/ui/require-permission";
 import { StatCard } from "@/components/ui/stat-card";
 import { useApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -15,6 +16,19 @@ import { formatCurrency } from "@/lib/format";
 import { IconCheckCircle, IconClock, IconGraduationCap, IconProposals, IconUserCheck } from "@/components/ui/icons";
 
 export function AnalyticsScreen() {
+  return (
+    <RequirePermission
+      action={{ href: "/dashboard", label: "Back to my dashboard" }}
+      description="Programme analytics is institutional reporting for staff. Your own progress is on your dashboard and profile."
+      permission="ANALYTICS_VIEW"
+      title="Analytics is for staff"
+    >
+      <AnalyticsContent />
+    </RequirePermission>
+  );
+}
+
+function AnalyticsContent() {
   const { user, isLoading: authLoading } = useAuth();
   const { apiFetch } = useApi();
   const [data, setData] = useState<AnalyticsSnapshot | null>(null);

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { isCurrentRoute, navigationFor, roleLabels } from "@/lib/navigation";
+import { isCurrentRoute, navigationFor, roleLabels, settingsLinksFor } from "@/lib/navigation";
 import { useWorkQueue } from "@/lib/work-queue";
 import { LogoMark } from "@/components/ui/logo";
 import { IconSettings, IconX } from "@/components/ui/icons";
@@ -18,6 +18,7 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
   const { user } = useAuth();
   const { counts } = useWorkQueue();
   const items = navigationFor(user?.role);
+  const showBadges = user?.preferences?.showBadges !== false;
 
   return (
     <aside
@@ -52,7 +53,7 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
         {items.map((item) => {
           const current = isCurrentRoute(pathname, item.href);
           const Icon = item.icon;
-          const count = counts[item.href] ?? 0;
+          const count = showBadges ? counts[item.href] ?? 0 : 0;
           return (
             <Link
               className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all ${
@@ -87,24 +88,24 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
 
       {/* Footer Settings & Session Context */}
       <div className="mt-auto border-t border-[#E6E6E6] pt-4">
-        <Link
-          className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all ${
-            pathname === "/settings"
-              ? "bg-[#FEF6EE] text-[#30343B] border-l-4 border-[#F2A65A]"
-              : "text-[#666D7A] hover:bg-[#F7F7F6] hover:text-[#30343B]"
-          }`}
-          href="/settings"
-          onClick={onNavigate}
-        >
-          <span
-            className={`grid h-5 w-5 place-items-center ${
-              pathname === "/settings" ? "text-[#C27803]" : "text-[#8C93A0] group-hover:text-[#3978B8]"
-            }`}
-          >
-            <IconSettings size={18} />
-          </span>
-          <span>Settings</span>
-        </Link>
+        {settingsLinksFor(user?.role).map((link) => {
+          const current = pathname === link.href;
+          return (
+            <Link
+              className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all ${
+                current ? "bg-[#FEF6EE] text-[#30343B] border-l-4 border-[#F2A65A]" : "text-[#666D7A] hover:bg-[#F7F7F6] hover:text-[#30343B]"
+              }`}
+              href={link.href}
+              key={link.href}
+              onClick={onNavigate}
+            >
+              <span className={`grid h-5 w-5 place-items-center ${current ? "text-[#C27803]" : "text-[#8C93A0] group-hover:text-[#3978B8]"}`}>
+                <IconSettings size={18} />
+              </span>
+              <span>{link.label}</span>
+            </Link>
+          );
+        })}
 
         <div className="mt-4 rounded-xl border border-[#E6E6E6] bg-[#F7F7F6] p-3 text-xs text-[#666D7A]">
           <div className="flex items-center justify-between pb-1.5 border-b border-[#E6E6E6]">

@@ -264,6 +264,20 @@ export async function getSettingsService(): Promise<SettingsSummary> {
   return mockSettings;
 }
 
+/** Saves institution-wide settings (validated by the controller). Creates the record if it does not exist yet. */
+export async function updateSettingsService(update: Partial<SettingsSummary>): Promise<SettingsSummary> {
+  if (isDbConnected()) {
+    const saved = await SettingsModel.findOneAndUpdate(
+      { id: "default" },
+      { $set: update, $setOnInsert: { id: "default" } },
+      { new: true, upsert: true }
+    ).lean();
+    return stripMongoFields<SettingsSummary>(saved);
+  }
+  Object.assign(mockSettings, update);
+  return mockSettings;
+}
+
 export async function getAcademicSnapshotService(studentId: string): Promise<AcademicSnapshot | null> {
   if (isDbConnected()) {
     const item = await AcademicSnapshotModel.findOne({ studentId }).lean();

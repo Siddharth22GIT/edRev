@@ -37,6 +37,11 @@ const studentSchema = new Schema<Student>(
     projectsCompleted: { type: Number, required: true },
     earnings: { type: Number, required: true },
     mentor: { type: String, required: true },
+    // Optional self-managed profile fields
+    photoUrl: { type: String },
+    bio: { type: String },
+    phone: { type: String },
+    location: { type: String },
   },
   { timestamps: true }
 );
@@ -265,6 +270,11 @@ const userSchema = new Schema<User>(
       required: true,
     },
     studentId: { type: String },
+    preferences: {
+      celebrations: { type: Boolean },
+      reduceMotion: { type: Boolean },
+      showBadges: { type: Boolean },
+    },
   },
   { timestamps: true }
 );

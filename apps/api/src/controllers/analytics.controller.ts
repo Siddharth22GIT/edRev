@@ -6,7 +6,9 @@ import {
   getDashboardMetricsService,
   getProposalsService,
   getSettingsService,
+  updateSettingsService,
 } from "../services/analytics.service.js";
+import type { SettingsSummary } from "@edurev/types";
 import { getOpportunitiesService } from "../services/opportunity.service.js";
 
 const errorResponse = (res: Response, message: string, status = 400) =>
@@ -80,6 +82,64 @@ export async function getSettingsHandler(_req: Request, res: Response): Promise<
     res.json({ data });
   } catch (err: any) {
     errorResponse(res, err.message || "Failed to fetch settings.", 500);
+  }
+}
+
+function isValidTimezone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Admin-only: update institution-wide settings. Unknown fields are ignored. */
+export async function updateSettingsHandler(req: Request, res: Response): Promise<void> {
+  const body = req.body ?? {};
+  const update: Partial<SettingsSummary> = {};
+
+  if (body.organizationName !== undefined) {
+    const name = typeof body.organizationName === "string" ? body.organizationName.trim() : "";
+    if (name.length < 2 || name.length > 80) {
+      errorResponse(res, "Organisation name must be 2 to 80 characters.");
+      return;
+    }
+    update.organizationName = name;
+  }
+  if (body.notificationEmail !== undefined) {
+    const email = typeof body.notificationEmail === "string" ? body.notificationEmail.trim() : "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 120) {
+      errorResponse(res, "Notification email must be a valid email address.");
+      return;
+    }
+    update.notificationEmail = email;
+  }
+  if (body.timezone !== undefined) {
+    if (typeof body.timezone !== "string" || !isValidTimezone(body.timezone)) {
+      errorResponse(res, "Timezone must be a valid IANA timezone, e.g. Asia/Kolkata.");
+      return;
+    }
+    update.timezone = body.timezone;
+  }
+  if (body.weeklyDigestEnabled !== undefined) {
+    if (typeof body.weeklyDigestEnabled !== "boolean") {
+      errorResponse(res, "weeklyDigestEnabled must be true or false.");
+      return;
+    }
+    update.weeklyDigestEnabled = body.weeklyDigestEnabled;
+  }
+
+  if (Object.keys(update).length === 0) {
+    errorResponse(res, "Nothing to update. Editable fields: organizationName, notificationEmail, timezone, weeklyDigestEnabled.");
+    return;
+  }
+
+  try {
+    const data = await updateSettingsService(update);
+    res.json({ data, message: "Institutional settings saved." });
+  } catch (err: any) {
+    errorResponse(res, err.message || "Failed to save settings.", 500);
   }
 }
 

@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Student } from "@edurev/types";
 import { students as mockStudents } from "@edurev/mock-data";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { RequirePermission } from "@/components/ui/require-permission";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useApi } from "@/lib/api";
@@ -16,6 +18,19 @@ import { formatCurrency } from "@/lib/format";
 import { IconArrowRight } from "@/components/ui/icons";
 
 export function StudentsScreen() {
+  return (
+    <RequirePermission
+      action={{ href: "/profile", label: "Open my profile" }}
+      description="Your details, skills, training and tier progress are all in My profile."
+      permission="STUDENT_RECORDS_VIEW"
+      title="Your details live in My profile"
+    >
+      <StudentsList />
+    </RequirePermission>
+  );
+}
+
+function StudentsList() {
   const [students, setStudents] = useState<Student[]>(mockStudents);
   const [loading, setLoading] = useState(true);
   const { apiFetch } = useApi();
@@ -50,9 +65,7 @@ export function StudentsScreen() {
             <tr className="transition hover:bg-[#F7F7F6]/80" key={student.id}>
               <td className="px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#FEF6EE] text-xs font-bold text-[#C27803] ring-1 ring-[#F2A65A]/30">
-                    {student.avatarInitials}
-                  </span>
+                  <Avatar initials={student.avatarInitials} name={student.name} photoUrl={student.photoUrl} size={36} />
                   <div>
                     <Link className="font-bold text-[#30343B] hover:text-[#3978B8] transition" href={`/students/${student.id}`}>
                       {student.name}

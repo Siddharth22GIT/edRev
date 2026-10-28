@@ -41,6 +41,12 @@ export const PERMISSIONS = {
   EARNINGS_VIEW_ALL: ["FACULTY_DIRECTOR", "CELL_COORDINATOR", "ADMINISTRATOR", "DEAN", "PLACEMENT_OFFICE"],
   /** Verify or reject a pending earnings record. */
   EARNINGS_VERIFY: ["FACULTY_DIRECTOR", "CELL_COORDINATOR", "ADMINISTRATOR", "DEAN"],
+  /** Edit any student's profile details and photo. Students may always edit their own. */
+  PROFILE_EDIT_ANY: ["ADMINISTRATOR"],
+  /** Change institution-wide settings (organisation name, notification email, timezone, digest). */
+  SETTINGS_MANAGE: ["ADMINISTRATOR"],
+  /** Programme analytics and dashboard metrics. Institutional reporting, not student-facing. */
+  ANALYTICS_VIEW: STAFF_ROLES,
   /** Create a proposal. Students are always recorded as the author. */
   PROPOSAL_CREATE: ALL_ROLES,
 } satisfies Record<string, readonly Role[]>;

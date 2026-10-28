@@ -20,7 +20,8 @@ export interface NavigationItem {
 export const navigation: NavigationItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: IconDashboard },
   { href: "/opportunities", label: "Opportunities", icon: IconOpportunities },
-  { href: "/students", label: "Students", icon: IconStudents },
+  // Students reach their own record through "My profile"; the cohort list is for staff
+  { href: "/students", label: "Students", icon: IconStudents, visibleTo: (role) => can(role, "STUDENT_RECORDS_VIEW") },
   {
     href: "/earnings",
     label: "Earnings",
@@ -30,12 +31,21 @@ export const navigation: NavigationItem[] = [
   },
   { href: "/proposals", label: "Proposals", icon: IconProposals },
   { href: "/safeguards", label: "Safeguards", icon: IconSafeguards },
-  { href: "/analytics", label: "Analytics", icon: IconAnalytics },
+  { href: "/analytics", label: "Analytics", icon: IconAnalytics, visibleTo: (role) => can(role, "ANALYTICS_VIEW") },
 ];
 
 export function navigationFor(role: Role | undefined): NavigationItem[] {
   if (!role) return [];
   return navigation.filter((item) => !item.visibleTo || item.visibleTo(role));
+}
+
+/** Settings links: everyone gets Account settings; institution-wide settings are for SETTINGS_MANAGE. */
+export function settingsLinksFor(role: Role | undefined): { href: string; label: string }[] {
+  if (!role) return [];
+  return [
+    { href: "/settings/account", label: "Account settings" },
+    ...(can(role, "SETTINGS_MANAGE") ? [{ href: "/settings", label: "Institutional settings" }] : []),
+  ];
 }
 
 export function isCurrentRoute(pathname: string, href: string): boolean {
