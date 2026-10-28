@@ -1,6 +1,7 @@
 import type { Allocation, Bid, Opportunity, SlaStatus } from "@edurev/types";
 import {
   allocate as mockAllocate,
+  allocations as mockAllocations,
   bids as mockBids,
   getBids as mockGetBids,
   getOpportunity as mockGetOpportunity,
@@ -127,7 +128,7 @@ export async function getAllocationForOpportunityService(opportunityId: string):
     }
     return null;
   }
-  return null;
+  return mockAllocations.find((a) => a.opportunityId === opportunityId) ?? null;
 }
 
 export async function createOpportunityService(input: Partial<Opportunity>): Promise<Opportunity> {

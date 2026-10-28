@@ -12,6 +12,7 @@ import {
 } from "../services/student.service.js";
 import type { StudentProfileUpdate } from "@edurev/types";
 import { ownStudentId } from "../middleware/auth.middleware.js";
+import { reviewTier } from "./delivery.controller.js";
 
 const errorResponse = (res: Response, message: string, status = 400) =>
   res.status(status).json({ message });
@@ -94,7 +95,8 @@ export async function updateTrainingModuleStatusHandler(req: Request, res: Respo
 
   try {
     const data = await updateTrainingModuleStatusService(studentId, moduleId, status);
-    res.json({ data, message: `Training module ${moduleId} status updated to ${status}.` });
+    const tierReview = await reviewTier(studentId);
+    res.json({ data, tierReview, message: `Training module ${moduleId} status updated to ${status}.` });
   } catch (err: any) {
     const statusCode = err.statusCode || 400;
     errorResponse(res, err.message || "Failed to update training module status.", statusCode);

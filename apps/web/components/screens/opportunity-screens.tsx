@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TierBadge } from "@/components/ui/tier-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -236,7 +237,7 @@ export function OpportunitiesScreen() {
                 {opportunity.company} · {opportunity.category}
               </p>
               <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
-                <Badge tone="blue">{opportunity.requiredTier.replace("_", " ")}+</Badge>
+                <TierBadge showName={false} suffix="+" tier={opportunity.requiredTier} />
                 <Badge tone="orange">{opportunity.matchScore || 95}% match</Badge>
               </div>
               <div className="mt-auto flex items-end justify-between border-t border-[#E6E6E6] pt-4 mt-5">

@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { can, type Student, type StudentReadinessSummary, type Tier } from "@edurev/types";
-import { getStudent, getStudentTier } from "@edurev/mock-data";
-import { Badge } from "@/components/ui/badge";
+import { can, nextTierOf, TIER_INFO, TIER_ORDER, tierCriteria, type DeliveryRecord, type Student, type StudentReadinessSummary, type Tier } from "@edurev/types";
+import { getStudent } from "@edurev/mock-data";
+import { CriteriaList, TierLadder } from "@/components/student/tier-ladder";
+import { TierBadge } from "@/components/ui/tier-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -18,6 +19,7 @@ export function StudentTierScreen({ id }: { id: string }) {
   const { apiFetch } = useApi();
   const [student, setStudent] = useState<Student | null>(() => getStudent(id) || null);
   const [readiness, setReadiness] = useState<StudentReadinessSummary | null>(null);
+  const [delivery, setDelivery] = useState<DeliveryRecord | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   const [selectedTier, setSelectedTier] = useState<Tier>("TIER_1");
   const [tierNotice, setTierNotice] = useState<{ msg: string; isError?: boolean } | null>(null);
@@ -27,7 +29,8 @@ export function StudentTierScreen({ id }: { id: string }) {
 
   const loadData = async () => {
     try {
-      const res = await apiFetch(`/students/${id}/readiness`);
+      const [res, deliveryRes] = await Promise.all([apiFetch(`/students/${id}/readiness`), apiFetch(`/students/${id}/delivery-record`)]);
+      if (deliveryRes.ok) setDelivery((await deliveryRes.json()).data ?? null);
       setAccessDenied(res.status === 403);
       if (res.ok) {
         const json = await res.json();
@@ -76,7 +79,15 @@ export function StudentTierScreen({ id }: { id: string }) {
 
   const currentTier = readiness?.student.tier || student.tier;
   const trainingPct = readiness?.training.progressPercentage ?? student.trainingProgress;
-  const mockTierInfo = getStudentTier(id);
+  const next = nextTierOf(currentTier);
+  const evaluation = {
+    currentTier,
+    officialCgpa: readiness?.academic ? readiness.academic.cgpa : null,
+    trainingPercent: trainingPct,
+    skillsCount: (readiness?.student ?? student).skills.length,
+    completedDeliveries: delivery?.completed ?? 0,
+    onTimeDeliveries: delivery?.onTime ?? 0,
+  };
 
   return (
     <div className="space-y-7">
@@ -85,7 +96,7 @@ export function StudentTierScreen({ id }: { id: string }) {
       </Link>
       <PageHeader
         eyebrow="Tier Progression & Institutional Controls"
-        title={`${student.name}'s Official Tier: ${currentTier}`}
+        title={`${student.name}'s Official Tier: ${currentTier.replace("_", " ")} · ${TIER_INFO[currentTier].name}`}
         description="Official tier determines project complexity eligibility and is updated by Administrators upon reviewing readiness indicators."
       />
 
@@ -93,25 +104,47 @@ export function StudentTierScreen({ id }: { id: string }) {
         <Card className="p-6 lg:col-span-2 space-y-6 border-[#E6E6E6] bg-white shadow-card">
           <div className="flex items-center justify-between border-b border-[#E6E6E6] pb-4">
             <h2 className="font-bold text-[#30343B] text-base">Readiness & Progression Summary</h2>
-            <Badge tone="blue">Current: {currentTier}</Badge>
+            <TierBadge prefix="Current" tier={currentTier} />
           </div>
+
+          <TierLadder current={currentTier} />
 
           <div>
             <ProgressBar label="Training & Readiness Progress" tone="orange" value={trainingPct} />
           </div>
 
           <div className="space-y-3 pt-2">
-            <h3 className="text-sm font-bold text-[#30343B]">Institutional Review Criteria</h3>
-            {mockTierInfo?.requirements.map((req) => (
-              <div className="flex items-center gap-3 rounded-xl border border-[#E6E6E6] px-4 py-3 bg-[#F7F7F6]/50" key={req.label}>
-                <span className={`grid h-5 w-5 place-items-center rounded-full text-xs font-bold ${req.completed ? "bg-emerald-100 text-emerald-700" : "bg-[#E6E6E6] text-[#666D7A]"}`}>
-                  {req.completed ? "✓" : "·"}
-                </span>
-                <span className={req.completed ? "text-xs font-semibold text-[#30343B]" : "text-xs text-[#666D7A]"}>
-                  {req.label}
-                </span>
+            {next ? (
+              <>
+                <h3 className="flex flex-wrap items-center gap-2 text-sm font-bold text-[#30343B]">
+                  What unlocks <TierBadge tier={next} />
+                </h3>
+                <CriteriaList criteria={tierCriteria(next, evaluation)} />
+                <p className="text-[11px] text-[#8C93A0]">
+                  {next === "TIER_4"
+                    ? "TIER 4 is earned only through on-time client delivery. Meeting the criteria creates a suggestion for an administrator."
+                    : "Meeting the criteria creates a suggestion; an administrator makes the final decision."}
+                </p>
+              </>
+            ) : (
+              <p className="rounded-xl bg-[#FEF6EE] p-4 text-sm font-semibold text-[#C27803]">★ Top tier reached. Keep delivering on time to stay here.</p>
+            )}
+            {delivery && (
+              <div className="grid grid-cols-3 gap-3 pt-2 text-center">
+                <div className="rounded-xl bg-[#F7F7F6] p-3">
+                  <p className="text-lg font-extrabold text-[#30343B]">{delivery.completed}</p>
+                  <p className="text-[11px] font-semibold text-[#666D7A]">Delivered</p>
+                </div>
+                <div className="rounded-xl bg-[#F7F7F6] p-3">
+                  <p className="text-lg font-extrabold text-[#30343B]">{delivery.completed ? `${delivery.onTimeRate}%` : "–"}</p>
+                  <p className="text-[11px] font-semibold text-[#666D7A]">On time</p>
+                </div>
+                <div className="rounded-xl bg-[#F7F7F6] p-3">
+                  <p className="text-lg font-extrabold text-[#30343B]">{delivery.active}</p>
+                  <p className="text-[11px] font-semibold text-[#666D7A]">In progress</p>
+                </div>
               </div>
-            ))}
+            )}
           </div>
         </Card>
 
@@ -129,10 +162,11 @@ export function StudentTierScreen({ id }: { id: string }) {
                   onChange={(e) => setSelectedTier(e.target.value as Tier)}
                   value={selectedTier}
                 >
-                  <option value="TIER_1">TIER_1</option>
-                  <option value="TIER_2">TIER_2</option>
-                  <option value="TIER_3">TIER_3</option>
-                  <option value="TIER_4">TIER_4</option>
+                  {TIER_ORDER.map((tier) => (
+                    <option key={tier} value={tier}>
+                      {tier.replace("_", " ")} · {TIER_INFO[tier].name}
+                    </option>
+                  ))}
                 </select>
               </div>
 

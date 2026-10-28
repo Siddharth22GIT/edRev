@@ -7,6 +7,7 @@ import { MyProfileProvider } from "@/lib/my-profile";
 import { WorkQueueProvider } from "@/lib/work-queue";
 import { BottomNav } from "./bottom-nav";
 import { CommandPalette } from "./command-palette";
+import { OnboardingRedirect } from "./onboarding-redirect";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 
@@ -44,6 +45,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <MyProfileProvider>
       <WorkQueueProvider>
+        <OnboardingRedirect />
         <div className="min-h-screen bg-[#F7F7F6]">
           {sidebarOpen ? (
             <button

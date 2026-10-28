@@ -35,6 +35,8 @@ Both sides read the same lists, so a button can never appear for a role the API 
 | `PROFILE_EDIT_ANY` | Administrator | Edit any student's profile details and photo (students may always edit their own) |
 | `SETTINGS_MANAGE` | Administrator | `PUT /settings` (institution-wide settings) |
 | `ANALYTICS_VIEW` | All staff | `GET /analytics`, `GET /dashboard` (programme reporting is not student-facing) |
+| `SIGNUP_REVIEW` | Cell Coordinator, Administrator | `GET /signup-requests`, `POST /signup-requests/:id/approve` / `reject` |
+| `ACADEMIC_RECORD_MANAGE` | Faculty Director, Administrator | `PUT /academic/:studentId` (official CGPA) |
 | `PROPOSAL_CREATE` | All roles | `POST /proposals` (a student is always recorded as the author) |
 
 ## Endpoint rules
@@ -50,6 +52,13 @@ Both sides read the same lists, so a button can never appear for a role the API 
 | `GET /safeguards/:studentId`, `/hours/:studentId`, `/academic/:studentId` | The student themself, or staff |
 | `PATCH /students/:id/profile` | The student themself, or `PROFILE_EDIT_ANY`. Only `bio`, `phone`, `location`, `skills` are accepted; tier, CGPA, earnings and identity are ignored |
 | `PUT` / `DELETE /students/:id/photo` | The student themself, or `PROFILE_EDIT_ANY`. PNG, JPEG or WebP data URL, max 512 KB, bytes must match the declared type |
+| `PUT /students/:id/onboarding`, `POST /students/:id/onboarding/skip` | The student themself, or `PROFILE_EDIT_ANY`. Accepts skills, interests (fixed list), availability (1–20h), claimed CGPA (0–10, stored separately from the official CGPA), goals, public http(s) portfolio links. Never changes tier, CGPA or earnings |
+| `GET /tier-suggestions`, `POST /tier-suggestions/:id/approve` / `dismiss` | `TIER_UPDATE` (Administrator). Approving applies the suggested tier; a decided suggestion returns 409 |
+| `POST /auth/signup`, `GET /auth/signup-config` | **Public.** Students only (role is never accepted), exact allowed domains (`lpu.in` by default), one account per email and per registration number, 5 attempts/hour per address, hidden honeypot field. New accounts are `PENDING_APPROVAL`. 503 in demo data mode |
+| `POST /auth/login` | Public. Pending/rejected status is only revealed after the correct password. 10 failed attempts per email+address in 15 minutes → 429 |
+| `PUT /academic/:studentId` | `ACADEMIC_RECORD_MANAGE`. Official CGPA 0–10; sets eligibility from the required CGPA and keeps the profile CGPA in sync |
+| `POST /opportunities/:id/delivery` | `OPPORTUNITY_ALLOCATE`. Confirms delivery once (409 after), records on-time vs the opportunity due date, adds one completed project |
+| `GET /students/:id/delivery-record` | The student themself, or staff |
 | `POST /hours` | Student: own hours only (identity from token). Supervisors: must name a `studentId` |
 | `GET /safeguards`, `/blackouts`, `/settings`, `/proposals` | Any signed-in user |
 | `GET /dashboard`, `/analytics` | `ANALYTICS_VIEW` (staff) |

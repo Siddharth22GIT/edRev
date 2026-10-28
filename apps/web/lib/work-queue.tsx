@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { can, type EarningsEntry, type Opportunity, type Proposal } from "@edurev/types";
+import { can, type EarningsEntry, type Opportunity, type Proposal, type SignupRequest, type TierSuggestion } from "@edurev/types";
 import { useApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
@@ -13,6 +13,10 @@ interface WorkQueue {
   reviewOpportunities: Opportunity[];
   /** Proposals sitting in review (proposal editors and administrators). */
   reviewProposals: Proposal[];
+  /** Tier suggestions waiting for a decision (roles that may change official tiers). */
+  tierSuggestions: TierSuggestion[];
+  /** Student sign-ups waiting for approval (Cell Coordinator, Administrator). */
+  signupRequests: SignupRequest[];
   loading: boolean;
   /** Badge counts keyed by sidebar route. */
   counts: Record<string, number>;
@@ -32,6 +36,8 @@ export function WorkQueueProvider({ children }: { children: ReactNode }) {
   const [pendingEarnings, setPendingEarnings] = useState<EarningsEntry[]>([]);
   const [reviewOpportunities, setReviewOpportunities] = useState<Opportunity[]>([]);
   const [reviewProposals, setReviewProposals] = useState<Proposal[]>([]);
+  const [tierSuggestions, setTierSuggestions] = useState<TierSuggestion[]>([]);
+  const [signupRequests, setSignupRequests] = useState<SignupRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [version, setVersion] = useState(0);
 
@@ -53,15 +59,19 @@ export function WorkQueueProvider({ children }: { children: ReactNode }) {
     };
 
     (async () => {
-      const [earnings, opportunities, proposals] = await Promise.all([
+      const [earnings, opportunities, proposals, suggestions, signups] = await Promise.all([
         can(role, "EARNINGS_VERIFY") ? readList<EarningsEntry>("/earnings") : Promise.resolve([]),
         can(role, "OPPORTUNITY_ALLOCATE") ? readList<Opportunity>("/opportunities") : Promise.resolve([]),
         role === "PROPOSAL_EDITOR" || role === "ADMINISTRATOR" ? readList<Proposal>("/proposals") : Promise.resolve([]),
+        can(role, "TIER_UPDATE") ? readList<TierSuggestion>("/tier-suggestions?status=PENDING") : Promise.resolve([]),
+        can(role, "SIGNUP_REVIEW") ? readList<SignupRequest>("/signup-requests?status=PENDING_APPROVAL") : Promise.resolve([]),
       ]);
       if (cancelled) return;
       setPendingEarnings(earnings.filter((e) => e.verificationStatus === "PENDING"));
       setReviewOpportunities(opportunities.filter((o) => o.status === "UNDER_REVIEW"));
       setReviewProposals(proposals.filter((p) => p.status === "IN_REVIEW"));
+      setTierSuggestions(suggestions);
+      setSignupRequests(signups);
       setLoading(false);
     })();
 
@@ -76,11 +86,12 @@ export function WorkQueueProvider({ children }: { children: ReactNode }) {
     "/earnings": pendingEarnings.length,
     "/opportunities": reviewOpportunities.length,
     "/proposals": reviewProposals.length,
+    "/students": tierSuggestions.length + signupRequests.length,
   };
 
   return (
     <WorkQueueContext.Provider
-      value={{ pendingEarnings, reviewOpportunities, reviewProposals, loading, counts, refresh: () => setVersion((v) => v + 1) }}
+      value={{ pendingEarnings, reviewOpportunities, reviewProposals, tierSuggestions, signupRequests, loading, counts, refresh: () => setVersion((v) => v + 1) }}
     >
       {children}
     </WorkQueueContext.Provider>

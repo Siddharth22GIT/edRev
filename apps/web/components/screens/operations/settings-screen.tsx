@@ -48,11 +48,15 @@ function InstitutionalSettingsForm() {
   const { toast } = useToast();
   const [form, setForm] = useState<SettingsSummary | null>(null);
   const [saving, setSaving] = useState(false);
+  const [domainsText, setDomainsText] = useState("lpu.in");
 
   useEffect(() => {
     apiFetch("/settings")
       .then((res) => (res.ok ? res.json() : null))
-      .then((json) => setForm(json?.data ?? null))
+      .then((json) => {
+        setForm(json?.data ?? null);
+        if (json?.data?.allowedSignupDomains?.length) setDomainsText(json.data.allowedSignupDomains.join(", "));
+      })
       .catch(() => setForm(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -80,11 +84,17 @@ function InstitutionalSettingsForm() {
           notificationEmail: form.notificationEmail,
           timezone: form.timezone,
           weeklyDigestEnabled: form.weeklyDigestEnabled,
+          signupEnabled: form.signupEnabled ?? true,
+          allowedSignupDomains: domainsText
+            .split(",")
+            .map((d) => d.trim())
+            .filter(Boolean),
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || "Could not save settings.");
       setForm(json.data);
+      if (json.data?.allowedSignupDomains?.length) setDomainsText(json.data.allowedSignupDomains.join(", "));
       toast("Institutional settings saved.");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Could not save settings.", "error");
@@ -146,6 +156,25 @@ function InstitutionalSettingsForm() {
             type="checkbox"
           />
         </label>
+        <div className="rounded-xl border border-[#C2DCF2] bg-[#EFF6FC]/50 p-4">
+          <label className="flex cursor-pointer items-center justify-between gap-4">
+            <span>
+              <span className="block text-sm font-bold text-[#30343B]">Student self sign-up</span>
+              <span className="mt-0.5 block text-xs text-[#666D7A]">Let students request an account from the login page. A Cell Coordinator or Administrator approves each one.</span>
+            </span>
+            <input
+              checked={form.signupEnabled ?? true}
+              className="h-4 w-4 accent-[#F2A65A]"
+              onChange={(e) => setForm({ ...form, signupEnabled: e.target.checked })}
+              type="checkbox"
+            />
+          </label>
+          <label className="mt-4 block text-xs font-bold uppercase tracking-wider text-[#666D7A]" htmlFor="signup-domains">
+            Allowed email domains
+          </label>
+          <input className={field} id="signup-domains" onChange={(e) => setDomainsText(e.target.value)} placeholder="lpu.in" value={domainsText} />
+          <p className="mt-1 text-[11px] text-[#8C93A0]">Comma-separated, exact match. Only these addresses can register (e.g. lpu.in).</p>
+        </div>
         <div className="pt-2">
           <Button disabled={saving} type="submit" variant="primary">
             {saving ? "Saving…" : "Save Institutional Changes"}

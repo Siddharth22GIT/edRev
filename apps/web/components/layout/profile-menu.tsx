@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { TIER_INFO } from "@edurev/types";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { IconCamera, IconChevronDown, IconGraduationCap, IconLogout, IconSettings, IconUser } from "@/components/ui/icons";
@@ -69,7 +70,7 @@ export function ProfileMenu() {
               <p className="truncate text-xs text-[#C2DCF2]">{user.email}</p>
               {isStudent && student && (
                 <p className="mt-1 text-xs font-semibold text-[#FBD7B3]">
-                  CGPA {student.cgpa.toFixed(2)} · {student.tier.replace("_", " ")}
+                  CGPA {student.cgpa.toFixed(2)} · {student.tier.replace("_", " ")} {TIER_INFO[student.tier]?.name}
                 </p>
               )}
             </div>

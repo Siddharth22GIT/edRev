@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { can, type DashboardMetrics, type Opportunity, type Student, type StudentReadinessSummary, type Tier } from "@edurev/types";
+import { can, TIER_INFO, type DashboardMetrics, type Opportunity, type Student, type StudentReadinessSummary, type Tier } from "@edurev/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { firstName, greetingFor, HeroBanner } from "@/components/ui/hero-banner"
 import { Skeleton, SkeletonRows } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { currentStage, JourneyStepper, MountainProgress } from "@/components/student/journey";
+import { ProfileCompletenessCard } from "@/components/profile/profile-completeness-card";
 import { useApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -138,6 +139,32 @@ function StaffHome() {
       items: queue.reviewProposals.slice(0, 3).map((p) => ({ label: p.title, meta: p.studentName, href: "/proposals" })),
       href: "/proposals",
       cta: "Open proposals",
+    });
+  }
+  if (can(role, "SIGNUP_REVIEW") && queue.signupRequests.length > 0) {
+    tasks.push({
+      id: "signups",
+      tone: "blue",
+      icon: <IconStudents size={18} />,
+      title: `${queue.signupRequests.length} student sign-up${queue.signupRequests.length === 1 ? "" : "s"} to approve`,
+      items: queue.signupRequests.slice(0, 3).map((r) => ({ label: r.name, meta: `${r.registrationNumber} · ${r.program}`, href: "/students#signup-requests" })),
+      href: "/students#signup-requests",
+      cta: "Review sign-ups",
+    });
+  }
+  if (can(role, "TIER_UPDATE") && queue.tierSuggestions.length > 0) {
+    tasks.push({
+      id: "tiers",
+      tone: "orange",
+      icon: <IconGraduationCap size={18} />,
+      title: `${queue.tierSuggestions.length} tier suggestion${queue.tierSuggestions.length === 1 ? "" : "s"} to review`,
+      items: queue.tierSuggestions.slice(0, 3).map((s) => ({
+        label: s.studentName,
+        meta: `${s.currentTier.replace("_", " ")} → ${s.suggestedTier.replace("_", " ")}`,
+        href: "/students#tier-suggestions",
+      })),
+      href: "/students#tier-suggestions",
+      cta: "Review",
     });
   }
   if (supervises && checkIns.length > 0) {
@@ -339,7 +366,7 @@ function StudentHome() {
       <HeroBanner
         eyebrow="Your workspace"
         title={`${greetingFor()}, ${firstName(user!.name)}`}
-        subtitle={student ? `Official tier ${student.tier.replace("_", " ")} · ${readiness!.training.progressPercentage}% training complete` : "Loading your progress…"}
+        subtitle={student ? `Official ${student.tier.replace("_", " ")} · ${TIER_INFO[student.tier]?.name} · ${readiness!.training.progressPercentage}% training complete` : "Loading your progress…"}
         action={
           <>
             {logEarning && (
@@ -365,6 +392,8 @@ function StudentHome() {
           </Button>
         </Card>
       )}
+
+      {student && <ProfileCompletenessCard compact student={student} />}
 
       {/* Next step */}
       {loading ? (

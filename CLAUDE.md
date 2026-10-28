@@ -34,6 +34,8 @@ Dev logins: `student@`, `analyst@`, `editor@`, `guild@`, `coordinator@`, `facult
 - The institution takes **no commission**; there is no payment gateway.
 - No public or individual earnings leaderboard; analytics are aggregate only.
 - **Official tiers change only by an ADMINISTRATOR.** Training, onboarding or any automation may *suggest* a tier, never set it.
+- Tiers: **TIER_1 lowest → TIER_4 highest** (Starter, Skilled, Advanced, Elite). New students start at TIER_1. Rules live once in `packages/types/src/tiers.ts` (`TIER_RULES`, `suggestTier`, `tierCriteria`): official CGPA ≥ 8.0 + training 40% + 2 skills → TIER_2; ≥ 9.0 + 60% + 3 skills → TIER_3; TIER_4 only from TIER_3 with 5+ confirmed deliveries and 90%+ on time. Stale pending suggestions are withdrawn by the system. Show tiers with `TierBadge` (grey → blue → orange → dark gradient).
+- Self sign-up creates **STUDENT** accounts only, from allowed domains (`lpu.in`), as `PENDING_APPROVAL`; a Cell Coordinator or Administrator approves (`SIGNUP_REVIEW`). Approval creates the student at TIER_1 with a RESTRICTED academic record until a Faculty Director records the official CGPA. One account per email and per registration number (unique indexes).
 - Official CGPA comes from the academic record (`AcademicSnapshot`). Student-entered CGPA is a claim, not a replacement: the CGPA safeguard depends on the official value.
 - A student's identity always comes from the verified token (`req.user.studentId`), never from the request body.
 - One bid per student per opportunity (unique DB index; 409 on duplicates).
@@ -70,6 +72,7 @@ Dev logins: `student@`, `analyst@`, `editor@`, `guild@`, `coordinator@`, `facult
 
 1. ✅ Profile menu + profile page + photo upload (`/profile`, `MyProfileProvider`, `PATCH /students/:id/profile`, `PUT|DELETE /students/:id/photo`)
    ✅ Settings split: `/settings` (Admin, `SETTINGS_MANAGE`, real save) vs `/settings/account` (everyone: password, preferences). Students don't see Students list or Analytics (`ANALYTICS_VIEW`). Page guard: `RequirePermission`.
-2. First-login onboarding wizard (skills, claimed CGPA, goals, links) + admin tier *suggestions*
+2. ✅ First-login onboarding wizard (`/onboarding`, outside the workspace shell; `OnboardingRedirect` sends students there until they finish or skip) + admin tier suggestions (`services/onboarding.service.ts` `TIER_RULES`; approve/dismiss on the Students page). Suggestions read the official CGPA, never `claimedCgpa`.
+   ✅ Student self sign-up (login page tab, `/signup-requests`), official academic record (`PUT /academic/:id`), delivery confirmation and on-time record (`POST /opportunities/:id/delivery`), shared tier rules + `TierBadge` colour scale.
 3. "My Messages" + staff announcements (`MESSAGE_SEND` permission, per-student read state)
 4. Extras: skill-based match score, achievement badges, saved opportunities, portfolio links, mentor skill endorsements, dark mode, deadline reminders

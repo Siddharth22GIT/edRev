@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { RequirePermission } from "@/components/ui/require-permission";
+import { TIER_STYLES, TierBadge } from "@/components/ui/tier-badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { useApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -232,14 +233,14 @@ function AnalyticsContent() {
                 return (
                   <div className="space-y-1.5" key={t.tier}>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-[#30343B]">{t.tier.replace("_", " ")}</span>
+                      <TierBadge tier={t.tier} />
                       <span className="text-[#666D7A]">
                         <strong className="text-[#30343B]">{t.count}</strong> ({pct}%)
                       </span>
                     </div>
                     <div className="h-2 w-full rounded-full bg-[#E6E6E6] overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-[#3978B8] transition-all duration-500"
+                        className={`h-full rounded-full transition-all duration-500 ${TIER_STYLES[t.tier]?.bar ?? "bg-[#3978B8]"}`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>

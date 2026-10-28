@@ -9,6 +9,7 @@ import {
   updateSettingsHandler,
 } from "../controllers/analytics.controller.js";
 
+import { updateAcademicRecordHandler } from "../controllers/delivery.controller.js";
 import { authenticate, requirePermission, requireSelfOrPermission } from "../middleware/auth.middleware.js";
 
 const router = Router();
@@ -21,5 +22,6 @@ router.post("/proposals", authenticate, requirePermission("PROPOSAL_CREATE"), cr
 router.get("/settings", authenticate, getSettingsHandler);
 router.put("/settings", authenticate, requirePermission("SETTINGS_MANAGE"), updateSettingsHandler);
 router.get("/academic/:studentId", authenticate, requireSelfOrPermission("STUDENT_RECORDS_VIEW", "studentId"), getAcademicSnapshotHandler);
+router.put("/academic/:studentId", authenticate, requirePermission("ACADEMIC_RECORD_MANAGE"), updateAcademicRecordHandler);
 
 export default router;

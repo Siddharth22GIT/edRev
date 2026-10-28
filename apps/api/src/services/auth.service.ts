@@ -25,8 +25,9 @@ async function getMockHash() {
   return mockHashCache;
 }
 
-export async function loginService(email: string, password: string): Promise<AuthResponse> {
+export async function loginService(rawEmail: string, password: string): Promise<AuthResponse> {
   let user: User | null = null;
+  const email = rawEmail.trim().toLowerCase();
 
   if (isDbConnected()) {
     user = await UserModel.findOne({ email }).lean<User>();
@@ -50,6 +51,21 @@ export async function loginService(email: string, password: string): Promise<Aut
   if (!isValidPassword) {
     const err: any = new Error("Invalid email or password.");
     err.statusCode = 401;
+    throw err;
+  }
+
+  // Self-signed-up accounts must be approved first. Only revealed after a correct password.
+  if (user.status === "PENDING_APPROVAL") {
+    const err: any = new Error("Your account is awaiting approval by your institution. You'll be able to sign in once it's approved.");
+    err.statusCode = 403;
+    err.code = "ACCOUNT_PENDING";
+    throw err;
+  }
+  if (user.status === "REJECTED") {
+    const reason = user.signup?.rejectionReason ? ` Reason: ${user.signup.rejectionReason}` : "";
+    const err: any = new Error(`Your sign-up request was not approved.${reason} You can correct your details and apply again.`);
+    err.statusCode = 403;
+    err.code = "ACCOUNT_REJECTED";
     throw err;
   }
 

@@ -213,6 +213,29 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
   const studentId = user?.studentId || user?.id || "stu-202";
   const mine = bids.some((b) => b.studentId === studentId);
   const canAllocate = can(role, "OPPORTUNITY_ALLOCATE");
+  const [confirmingDelivery, setConfirmingDelivery] = useState(false);
+
+  // Staff confirm delivery once the student has handed over the work (records on-time evidence)
+  const confirmDelivery = async () => {
+    setState("loading");
+    try {
+      const r = await apiFetch(`/opportunities/${opportunity.id}/delivery`, { method: "POST" });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.message);
+      setState("success");
+      setNotice(
+        `${j.message}${j.tierReview ? ` The student now qualifies for a ${String(j.tierReview.suggestedTier).replace("_", " ")} review.` : ""}`
+      );
+      celebrate();
+      await loadData();
+      workQueue.refresh();
+    } catch (e) {
+      setState("error");
+      setNotice(e instanceof Error ? e.message : "Could not confirm delivery.");
+    } finally {
+      setConfirmingDelivery(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -369,6 +392,39 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
               <span className="block text-[#666D7A] font-medium">SLA Target Deadline</span>
               <span className="mt-0.5 block font-bold text-[#3978B8] text-sm">{allocation.slaDeadline ? formatDate(allocation.slaDeadline) : "72 hours"}</span>
             </div>
+          </div>
+
+          {/* Delivery */}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#C2DCF2]/70 pt-4">
+            {allocation.status === "COMPLETED" ? (
+              <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-[#30343B]">
+                <IconCheckCircle className="text-emerald-600" size={18} />
+                Delivered {allocation.deliveredAt ? formatDate(allocation.deliveredAt) : ""}
+                <Badge tone={allocation.onTime ? "green" : "amber"}>{allocation.onTime ? "On time" : "Late"}</Badge>
+                {allocation.deliveryConfirmedBy && <span className="text-xs font-normal text-[#666D7A]">confirmed by {allocation.deliveryConfirmedBy}</span>}
+              </span>
+            ) : (
+              <span className="text-xs text-[#666D7A]">
+                Work in progress · client due date <strong className="text-[#30343B]">{formatDate(opportunity.deadline)}</strong>
+              </span>
+            )}
+            {canAllocate && allocation.status !== "COMPLETED" && (
+              confirmingDelivery ? (
+                <span className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-[#30343B]">Delivered today?</span>
+                  <Button className="text-xs" disabled={state === "loading"} onClick={() => setConfirmingDelivery(false)} variant="secondary">
+                    Cancel
+                  </Button>
+                  <Button className="text-xs" disabled={state === "loading"} onClick={confirmDelivery} variant="primary">
+                    {state === "loading" ? "Confirming…" : "Yes, confirm"}
+                  </Button>
+                </span>
+              ) : (
+                <Button className="text-xs" onClick={() => setConfirmingDelivery(true)} variant="blue">
+                  <IconCheckCircle size={14} /> Confirm delivery
+                </Button>
+              )
+            )}
           </div>
         </Card>
       )}

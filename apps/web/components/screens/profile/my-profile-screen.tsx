@@ -4,8 +4,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { can, PERMISSIONS, type Permission, type StudentReadinessSummary } from "@edurev/types";
 import { PhotoUploader } from "@/components/profile/photo-uploader";
+import { AboutCard, ProfileCompletenessCard } from "@/components/profile/profile-completeness-card";
 import { currentStage, JourneyStepper, MountainProgress } from "@/components/student/journey";
 import { Avatar } from "@/components/ui/avatar";
+import { TierBadge } from "@/components/ui/tier-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -164,7 +166,7 @@ function StudentProfile() {
         }
         badges={
           <>
-            <Badge tone="orange">Official {student.tier.replace("_", " ")}</Badge>
+            <TierBadge prefix="Official" tier={student.tier} />
             <Badge tone="blue">{student.course} · Year {student.year}</Badge>
             <Badge tone={readiness?.safeguardCheck.eligible === false ? "red" : "green"}>
               {readiness?.safeguardCheck.eligible === false ? "Action needed" : "Ready for work"}
@@ -234,6 +236,13 @@ function StudentProfile() {
               />
             </div>
           </Card>
+        </div>
+      )}
+
+      {tab === "overview" && (
+        <div className="grid gap-6 lg:grid-cols-[1fr_minmax(280px,380px)]">
+          <AboutCard officialCgpa={officialCgpa} student={student} />
+          <ProfileCompletenessCard compact student={student} />
         </div>
       )}
 

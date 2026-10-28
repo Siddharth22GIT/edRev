@@ -1,4 +1,4 @@
-import type { Student, Tier } from "@edurev/types";
+import { TIER_INFO, type Student, type Tier } from "@edurev/types";
 import { IconCheckCircle } from "@/components/ui/icons";
 
 const STAGES = ["Train", "Bid", "Earn", "Grow"] as const;
@@ -84,7 +84,7 @@ export function MountainProgress({ tier, progress }: { tier: Tier; progress: num
       </svg>
       <div>
         <p className="text-2xl font-extrabold text-[#30343B]">{pct}%</p>
-        <p className="text-xs font-semibold text-[#666D7A]">{next ? `of the climb to ${next.replace("_", " ")}` : "Top tier reached"}</p>
+        <p className="text-xs font-semibold text-[#666D7A]">{next ? `of the climb to ${next.replace("_", " ")} · ${TIER_INFO[next].name}` : "Top tier reached · Elite"}</p>
         <p className="mt-1 text-[11px] text-[#8C93A0]">Official tier changes are made by an Administrator.</p>
       </div>
     </div>

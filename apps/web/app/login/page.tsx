@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AvalancheCanvas } from "@/components/login/avalanche-canvas";
 import { CountUp } from "@/components/login/count-up";
+import { SignupForm } from "@/components/login/signup-form";
 import {
   IconAnalytics,
   IconArrowRight,
@@ -43,6 +44,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState(DEV_PASSWORD);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [accountStatus, setAccountStatus] = useState<{ code: string; message: string } | null>(null);
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+
+  // Deep link: /login?mode=signup opens the sign-up form
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("mode") === "signup") setMode("signup");
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,12 +61,17 @@ export default function LoginPage() {
 
     setLoading(true);
     setError("");
+    setAccountStatus(null);
 
     try {
       await login(email, password);
       router.push("/dashboard");
     } catch (err: any) {
-      setError(err.message || "Invalid credentials. Please check your email and password.");
+      if (err?.code === "ACCOUNT_PENDING" || err?.code === "ACCOUNT_REJECTED") {
+        setAccountStatus({ code: err.code, message: err.message });
+      } else {
+        setError(err.message || "Invalid credentials. Please check your email and password.");
+      }
     } finally {
       setLoading(false);
     }
@@ -68,6 +81,17 @@ export default function LoginPage() {
     setEmail(eMail);
     setPassword(DEV_PASSWORD);
     setError("");
+    setAccountStatus(null);
+  };
+
+  const switchMode = (next: "signin" | "signup", prefillEmail?: string) => {
+    setMode(next);
+    setError("");
+    setAccountStatus(null);
+    if (prefillEmail) {
+      setEmail(prefillEmail);
+      setPassword("");
+    }
   };
 
   return (
@@ -108,6 +132,14 @@ export default function LoginPage() {
               institution, owned by the student.
             </p>
 
+            <button
+              className="rise-in mt-6 inline-flex items-center gap-2 text-sm font-bold text-[#FBD7B3] transition hover:text-white [animation-delay:380ms]"
+              onClick={() => switchMode("signup")}
+              type="button"
+            >
+              New here? Create your student account <IconArrowRight size={14} />
+            </button>
+
             <dl className="rise-in mt-8 grid max-w-md grid-cols-3 gap-3 [animation-delay:420ms]">
               <div className="rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/15 backdrop-blur">
                 <dd className="text-2xl font-extrabold text-white">
@@ -142,9 +174,49 @@ export default function LoginPage() {
         <div className="rise-in w-full max-w-lg space-y-7 rounded-2xl border border-[#E6E6E6] bg-white p-7 shadow-panel sm:p-8">
           <div className="text-center">
             <LogoMark className="logo-pop mx-auto rounded-2xl shadow-sm ring-2 ring-[#FBD7B3]" size={56} />
-            <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-[#30343B]">Welcome back</h2>
-            <p className="mt-1 text-xs font-semibold text-[#3978B8]">Sign in to your REVALANCHE workspace</p>
+            <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-[#30343B]">{mode === "signin" ? "Welcome back" : "Create your account"}</h2>
+            <p className="mt-1 text-xs font-semibold text-[#3978B8]">
+              {mode === "signin" ? "Sign in to your REVALANCHE workspace" : "For students with an @lpu.in email"}
+            </p>
           </div>
+
+          <div className="grid grid-cols-2 rounded-xl bg-[#F7F7F6] p-1 ring-1 ring-[#E6E6E6]" role="tablist">
+            {(["signin", "signup"] as const).map((m) => (
+              <button
+                aria-selected={mode === m}
+                className={`rounded-lg py-2 text-sm font-bold transition ${mode === m ? "bg-white text-[#30343B] shadow-sm ring-1 ring-[#E6E6E6]" : "text-[#666D7A] hover:text-[#30343B]"}`}
+                key={m}
+                onClick={() => switchMode(m)}
+                role="tab"
+                type="button"
+              >
+                {m === "signin" ? "Sign in" : "Create account"}
+              </button>
+            ))}
+          </div>
+
+          {mode === "signup" ? (
+            <SignupForm onBackToSignIn={(prefill) => switchMode("signin", prefill)} />
+          ) : (
+          <>
+          {accountStatus && (
+            <div
+              className={`rounded-xl border p-4 text-sm ${
+                accountStatus.code === "ACCOUNT_PENDING" ? "border-[#FBD7B3] bg-[#FEF6EE] text-[#30343B]" : "border-rose-200 bg-rose-50 text-rose-800"
+              }`}
+              role="status"
+            >
+              <p className={`font-bold ${accountStatus.code === "ACCOUNT_PENDING" ? "text-[#C27803]" : "text-rose-700"}`}>
+                {accountStatus.code === "ACCOUNT_PENDING" ? "⏳ Awaiting approval" : "Request not approved"}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed">{accountStatus.message}</p>
+              {accountStatus.code === "ACCOUNT_REJECTED" && (
+                <button className="mt-2 text-xs font-bold text-[#3978B8] hover:underline" onClick={() => switchMode("signup")} type="button">
+                  Update my details and apply again →
+                </button>
+              )}
+            </div>
+          )}
 
           {error && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-center text-sm font-semibold text-rose-700">
@@ -225,6 +297,8 @@ export default function LoginPage() {
               })}
             </div>
           </div>
+          </>
+          )}
         </div>
       </main>
     </div>

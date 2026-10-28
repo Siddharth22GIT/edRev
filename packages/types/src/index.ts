@@ -8,13 +8,15 @@ export type VerificationStatus = "PENDING" | "VERIFIED" | "REJECTED";
 export type HourStatus = "NORMAL" | "WARNING" | "BLOCKED";
 export type ComplianceStatus = "COMPLIANT" | "WARNING" | "NON_COMPLIANT";
 export interface Opportunity { id: string; title: string; project: string; description: string; client: string; company: string; category: string; skills: string[]; budget: number; currency: string; deadline: string; status: OpportunityStatus; requiredTier: Tier; estimatedHours: number; numberOfBids: number; slaDeadline: string; matchScore: number; deliverables: string[]; updatedAt: string; allocatedStudentId?: string; }
-export interface Student { id: string; name: string; email: string; avatarInitials: string; program: string; course: string; year: number; tier: Tier; status: StudentStatus; skills: string[]; trainingProgress: number; progress: number; cgpa: number; joinedAt: string; projectsCompleted: number; earnings: number; mentor: string; photoUrl?: string; bio?: string; phone?: string; location?: string; }
+export interface Student { id: string; name: string; email: string; avatarInitials: string; program: string; course: string; year: number; tier: Tier; status: StudentStatus; skills: string[]; trainingProgress: number; progress: number; cgpa: number; joinedAt: string; projectsCompleted: number; earnings: number; mentor: string; photoUrl?: string; bio?: string; phone?: string; location?: string; onboardingCompletedAt?: string; onboardingSkippedAt?: string; claimedCgpa?: number; interests?: string[]; goals?: string; availabilityHours?: number; portfolioLinks?: PortfolioLink[]; registrationNumber?: string; }
 /** Fields a student may edit on their own profile. Tier, CGPA, earnings and identity are never editable here. */
 export interface StudentProfileUpdate { bio?: string; phone?: string; location?: string; skills?: string[]; }
 export interface TierSummary { studentId: string; currentTier: Tier; nextTier: Tier | null; progressToNextTier: number; requirements: { label: string; completed: boolean }[]; completedTraining: number; }
 export interface TrainingModule { id: string; title: string; description: string; status: "COMPLETED" | "IN_PROGRESS" | "NOT_STARTED"; completionPercentage: number; }
 export interface Bid { id: string; opportunityId: string; studentId: string; proposedAmount: number; estimatedCompletionTime: string; message: string; relevantSkills: string; proposalPdfUrl?: string; proposalPdfName?: string; status: BidStatus; createdAt: string; }
-export interface Allocation { opportunityId: string; studentId: string; allocatedBy: string; allocatedAt: string; status: "ALLOCATED" | "ACTIVE" | "COMPLETED" | "CANCELLED"; slaStartAt?: string; slaDeadline?: string; slaStatus?: SlaStatus; }
+export interface Allocation { opportunityId: string; studentId: string; allocatedBy: string; allocatedAt: string; status: "ALLOCATED" | "ACTIVE" | "COMPLETED" | "CANCELLED"; slaStartAt?: string; slaDeadline?: string; slaStatus?: SlaStatus; deliveredAt?: string; deliveryConfirmedBy?: string; onTime?: boolean; }
+/** A student's delivery history: the evidence for the top tier. */
+export interface DeliveryRecord { studentId: string; completed: number; onTime: number; onTimeRate: number; active: number; }
 
 
 export interface EarningsEntry { id: string; studentId: string; platformName: string; projectTitle?: string; originalAmount: number; originalCurrency: string; exchangeRate: number; convertedAmount: number; convertedCurrency: string; earningDate: string; verificationStatus: VerificationStatus; evidence: string; screenshotUrl?: string; evidenceStatus: "AVAILABLE" | "MISSING"; createdAt: string; verifiedBy?: string; verifiedAt?: string; rejectionReason?: string; }
@@ -29,14 +31,37 @@ export interface DashboardMetrics { activeStudents: number; opportunityPipeline:
 export interface AnalyticsSnapshot { placementRate: number; proposalWinRate: number; averageResponseHours: number | null; learnerSatisfaction: number | null; weeklyActivity: { label: string; value: number; date?: string }[]; studentsByTier: { tier: Tier; count: number }[]; }
 export interface Proposal { id: string; title: string; studentName: string; opportunityId: string; author: string; status: "DRAFT" | "IN_REVIEW" | "APPROVED" | "SUBMITTED"; reviewStatus: "PENDING" | "APPROVED"; version: number; submittedAt: string | null; value: number; }
 export interface Safeguard { id: string; name: string; description: string; status: "healthy" | "attention" | "blocked"; owner: string; lastCheckedAt: string; }
-export interface SettingsSummary { organizationName: string; notificationEmail: string; weeklyDigestEnabled: boolean; timezone: string; }
+export interface SettingsSummary { organizationName: string; notificationEmail: string; weeklyDigestEnabled: boolean; timezone: string; signupEnabled?: boolean; allowedSignupDomains?: string[]; }
 /** Personal app preferences, saved per account. */
 export interface UserPreferences { celebrations: boolean; reduceMotion: boolean; showBadges: boolean; }
 export const DEFAULT_USER_PREFERENCES: UserPreferences = { celebrations: true, reduceMotion: false, showBadges: true };
-export interface User { id: string; name: string; email: string; passwordHash?: string; role: Role; studentId?: string; createdAt?: string; updatedAt?: string; preferences?: UserPreferences; }
+/** Accounts created before self sign-up have no status and count as ACTIVE. */
+export type AccountStatus = "ACTIVE" | "PENDING_APPROVAL" | "REJECTED";
+export interface SignupDetails { registrationNumber: string; program: string; course: string; year: number; requestedAt: string; attempts: number; decidedBy?: string; decidedAt?: string; rejectionReason?: string; }
+export interface User { id: string; name: string; email: string; passwordHash?: string; role: Role; studentId?: string; createdAt?: string; updatedAt?: string; preferences?: UserPreferences; status?: AccountStatus; signup?: SignupDetails; }
 export interface AuthResponse { user: Omit<User, "passwordHash">; token: string; }
 export interface ApiError { message: string; }
+
+/** Self sign-up defaults: open, @lpu.in only. Administrators can change both in Institutional settings. */
+export const DEFAULT_SIGNUP_SETTINGS = { signupEnabled: true, allowedSignupDomains: ["lpu.in"] };
+export const SIGNUP_PROGRAMS = ["Computer Science and Engineering", "Data Analytics", "Product Design", "Content Strategy", "Business Administration", "Electronics and Communication", "Mechanical Engineering"] as const;
+export const SIGNUP_COURSES = ["B.Tech", "BCA", "B.Des", "BBA", "B.Com", "MBA", "MCA", "M.Tech"] as const;
+/** What a prospective student submits. Role is never accepted: self sign-up only creates STUDENT accounts. */
+export interface SignupSubmission { name: string; email: string; password: string; registrationNumber: string; program: string; course: string; year: number; acceptSafeguards: boolean; }
+/** A sign-up as seen by reviewers (Cell Coordinator, Administrator). */
+export interface SignupRequest { userId: string; name: string; email: string; registrationNumber: string; program: string; course: string; year: number; status: AccountStatus; requestedAt: string; attempts: number; decidedBy?: string; decidedAt?: string; rejectionReason?: string; studentId?: string; }
+
+/** A public portfolio link (GitHub, LinkedIn, Behance…). Never credentials. */
+export interface PortfolioLink { label: string; url: string; }
+/** Work areas a student can say they are interested in (matches opportunity categories). */
+export const INTEREST_AREAS = ["Product design", "Web development", "Data analysis", "Content strategy", "Marketing", "Research", "Mobile apps", "AI / ML"] as const;
+/** First-login onboarding answers. Claimed CGPA is a claim only: it never replaces the official academic record. */
+export interface OnboardingSubmission { skills: string[]; interests: string[]; claimedCgpa?: number; availabilityHours: number; goals?: string; portfolioLinks?: PortfolioLink[]; bio?: string; }
+export type TierSuggestionStatus = "PENDING" | "APPROVED" | "DISMISSED";
+/** A system-generated tier recommendation. Only an ADMINISTRATOR can approve it (which changes the official tier). */
+export interface TierSuggestion { id: string; studentId: string; studentName: string; currentTier: Tier; suggestedTier: Tier; reasons: string[]; notes: string[]; status: TierSuggestionStatus; createdAt: string; decidedBy?: string; decidedAt?: string; }
 export interface HealthStatus { status: "ok"; service: string; db: "connected" | "mock"; }
 
 export * from "./permissions";
+export * from "./tiers";
 

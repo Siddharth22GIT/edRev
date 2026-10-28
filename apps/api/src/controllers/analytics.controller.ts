@@ -130,8 +130,26 @@ export async function updateSettingsHandler(req: Request, res: Response): Promis
     update.weeklyDigestEnabled = body.weeklyDigestEnabled;
   }
 
+  if (body.signupEnabled !== undefined) {
+    if (typeof body.signupEnabled !== "boolean") {
+      errorResponse(res, "signupEnabled must be true or false.");
+      return;
+    }
+    update.signupEnabled = body.signupEnabled;
+  }
+  if (body.allowedSignupDomains !== undefined) {
+    const domains = Array.isArray(body.allowedSignupDomains)
+      ? Array.from(new Set(body.allowedSignupDomains.map((d: unknown) => (typeof d === "string" ? d.trim().toLowerCase().replace(/^@/, "") : ""))))
+      : [];
+    if (domains.length < 1 || domains.length > 5 || domains.some((d) => !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d as string))) {
+      errorResponse(res, "Allowed sign-up domains must be 1 to 5 domains like lpu.in.");
+      return;
+    }
+    update.allowedSignupDomains = domains as string[];
+  }
+
   if (Object.keys(update).length === 0) {
-    errorResponse(res, "Nothing to update. Editable fields: organizationName, notificationEmail, timezone, weeklyDigestEnabled.");
+    errorResponse(res, "Nothing to update. Editable fields: organizationName, notificationEmail, timezone, weeklyDigestEnabled, signupEnabled, allowedSignupDomains.");
     return;
   }
 

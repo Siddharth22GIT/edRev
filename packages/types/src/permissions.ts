@@ -43,6 +43,10 @@ export const PERMISSIONS = {
   EARNINGS_VERIFY: ["FACULTY_DIRECTOR", "CELL_COORDINATOR", "ADMINISTRATOR", "DEAN"],
   /** Edit any student's profile details and photo. Students may always edit their own. */
   PROFILE_EDIT_ANY: ["ADMINISTRATOR"],
+  /** Record a student's official CGPA (the academic record that safeguards and tier rules use). */
+  ACADEMIC_RECORD_MANAGE: ["FACULTY_DIRECTOR", "ADMINISTRATOR"],
+  /** Approve or reject student self sign-ups. */
+  SIGNUP_REVIEW: ["CELL_COORDINATOR", "ADMINISTRATOR"],
   /** Change institution-wide settings (organisation name, notification email, timezone, digest). */
   SETTINGS_MANAGE: ["ADMINISTRATOR"],
   /** Programme analytics and dashboard metrics. Institutional reporting, not student-facing. */

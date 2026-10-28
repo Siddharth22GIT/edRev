@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { can, type Student, type StudentReadinessSummary, type Tier, type TrainingModule } from "@edurev/types";
+import { can, TIER_INFO, TIER_ORDER, type Student, type StudentReadinessSummary, type Tier, type TrainingModule } from "@edurev/types";
 import { getStudent } from "@edurev/mock-data";
 import { Avatar } from "@/components/ui/avatar";
+import { AcademicRecordCard } from "@/components/students/academic-record-card";
+import { TierBadge } from "@/components/ui/tier-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -156,9 +158,7 @@ export function StudentDetailScreen({ id }: { id: string }) {
               <div>
                 <p className="font-bold text-[#30343B] text-base">{student.name} — Student Readiness View</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <Badge tone={currentTier === "TIER_4" ? "orange" : currentTier === "TIER_3" ? "orange" : "blue"}>
-                    Official Tier: {currentTier}
-                  </Badge>
+                  <TierBadge prefix="Official" tier={currentTier} />
                   <StatusBadge status={student.status} />
                   <Badge tone={safeguardEligible ? "green" : "red"}>
                     {safeguardEligible ? "Opportunity Eligible" : "Safeguard Blocked"}
@@ -332,10 +332,11 @@ export function StudentDetailScreen({ id }: { id: string }) {
                     onChange={(e) => setSelectedTier(e.target.value as Tier)}
                     value={selectedTier}
                   >
-                    <option value="TIER_1">TIER_1 (Foundational)</option>
-                    <option value="TIER_2">TIER_2 (Intermediate)</option>
-                    <option value="TIER_3">TIER_3 (Advanced)</option>
-                    <option value="TIER_4">TIER_4 (Lead / Master)</option>
+                    {TIER_ORDER.map((tier) => (
+                      <option key={tier} value={tier}>
+                        {tier.replace("_", " ")} · {TIER_INFO[tier].name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -352,7 +353,7 @@ export function StudentDetailScreen({ id }: { id: string }) {
             ) : (
               <div className="mt-4 space-y-3">
                 <div className="rounded-xl border border-[#E6E6E6] bg-[#F7F7F6] p-4 text-xs text-[#666D7A] leading-relaxed">
-                  <strong>Current Official Tier:</strong> <Badge tone="blue">{currentTier}</Badge>
+                  <strong>Current Official Tier:</strong> <TierBadge tier={currentTier} />
                   <p className="mt-2 text-[#666D7A]">
                     Official tier modifications are strictly restricted to <strong>ADMINISTRATOR</strong>.
                   </p>
@@ -360,6 +361,8 @@ export function StudentDetailScreen({ id }: { id: string }) {
               </div>
             )}
           </Card>
+
+          <AcademicRecordCard current={readiness?.academic ?? null} onSaved={loadReadinessData} studentId={student.id} />
 
           <details className="group rounded-xl border border-[#E6E6E6] bg-white p-4 shadow-card">
             <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-bold text-[#30343B]">

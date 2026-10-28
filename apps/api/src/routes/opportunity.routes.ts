@@ -9,6 +9,7 @@ import {
   getOpportunityByIdHandler,
   submitBidHandler,
 } from "../controllers/opportunity.controller.js";
+import { confirmDeliveryHandler } from "../controllers/delivery.controller.js";
 import { authenticate, requirePermission } from "../middleware/auth.middleware.js";
 
 const router = Router();
@@ -23,5 +24,7 @@ router.get("/:id/allocation", authenticate, getAllocationForOpportunityHandler);
 
 router.post("/:id/bids", authenticate, requirePermission("BID_SUBMIT"), submitBidHandler);
 router.post("/:id/allocate", authenticate, requirePermission("OPPORTUNITY_ALLOCATE"), allocateOpportunityHandler);
+// Staff who allocate work also confirm its delivery (records on-time evidence for the top tier)
+router.post("/:id/delivery", authenticate, requirePermission("OPPORTUNITY_ALLOCATE"), confirmDeliveryHandler);
 
 export default router;

@@ -5,6 +5,7 @@ import {
   dashboardMetrics as mockDashboardMetrics,
   proposals as mockProposals,
   settings as mockSettings,
+  students as mockStudents,
 } from "@edurev/mock-data";
 import { isDbConnected } from "../config/db.js";
 import {
@@ -276,6 +277,50 @@ export async function updateSettingsService(update: Partial<SettingsSummary>): P
   }
   Object.assign(mockSettings, update);
   return mockSettings;
+}
+
+/**
+ * Records a student's official CGPA. Eligibility follows the required CGPA (default 7.0), and the
+ * student profile's CGPA field is kept in sync. Creates the academic record if it does not exist.
+ */
+export async function upsertAcademicRecordService(studentId: string, cgpa: number, requiredCgpa?: number): Promise<AcademicSnapshot> {
+  if (isDbConnected()) {
+    const student = await StudentModel.findOne({ id: studentId });
+    if (!student) {
+      const err: any = new Error("Student not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+    const existing = await AcademicSnapshotModel.findOne({ studentId }).lean<AcademicSnapshot>();
+    const required = requiredCgpa ?? existing?.requiredCgpa ?? 7;
+    const saved = await AcademicSnapshotModel.findOneAndUpdate(
+      { studentId },
+      {
+        $set: { cgpa, requiredCgpa: required, cgpaStatus: cgpa >= required ? "ELIGIBLE" : "RESTRICTED" },
+        $setOnInsert: { studentId, complianceStatus: "COMPLIANT" },
+      },
+      { new: true, upsert: true }
+    ).lean();
+    student.cgpa = cgpa;
+    await student.save();
+    return stripMongoFields<AcademicSnapshot>(saved);
+  }
+
+  const student = mockStudents.find((s) => s.id === studentId);
+  if (!student) {
+    const err: any = new Error("Student not found.");
+    err.statusCode = 404;
+    throw err;
+  }
+  let record = mockAcademicSnapshots.find((a) => a.studentId === studentId);
+  const required = requiredCgpa ?? record?.requiredCgpa ?? 7;
+  if (!record) {
+    record = { studentId, cgpa, requiredCgpa: required, cgpaStatus: "RESTRICTED", complianceStatus: "COMPLIANT" };
+    mockAcademicSnapshots.push(record);
+  }
+  Object.assign(record, { cgpa, requiredCgpa: required, cgpaStatus: cgpa >= required ? "ELIGIBLE" : "RESTRICTED" });
+  student.cgpa = cgpa;
+  return record;
 }
 
 export async function getAcademicSnapshotService(studentId: string): Promise<AcademicSnapshot | null> {

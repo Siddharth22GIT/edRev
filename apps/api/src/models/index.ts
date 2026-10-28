@@ -12,6 +12,7 @@ import type {
   Safeguard,
   SettingsSummary,
   Student,
+  TierSuggestion,
   TrainingModule,
   User,
 } from "@edurev/types";
@@ -37,11 +38,21 @@ const studentSchema = new Schema<Student>(
     projectsCompleted: { type: Number, required: true },
     earnings: { type: Number, required: true },
     mentor: { type: String, required: true },
+    // Set for students who joined through self sign-up (unique when present)
+    registrationNumber: { type: String, unique: true, sparse: true },
     // Optional self-managed profile fields
     photoUrl: { type: String },
     bio: { type: String },
     phone: { type: String },
     location: { type: String },
+    // First-login onboarding answers (claimedCgpa is self-reported and never replaces the official CGPA)
+    onboardingCompletedAt: { type: String },
+    onboardingSkippedAt: { type: String },
+    claimedCgpa: { type: Number },
+    interests: [{ type: String }],
+    goals: { type: String },
+    availabilityHours: { type: Number },
+    portfolioLinks: [{ label: { type: String }, url: { type: String }, _id: false }],
   },
   { timestamps: true }
 );
@@ -112,6 +123,10 @@ const allocationSchema = new Schema<AllocationDocument>(
     slaStartAt: { type: String },
     slaDeadline: { type: String },
     slaStatus: { type: String, enum: ["ACTIVE", "AT_RISK", "COMPLETED", "OVERDUE", "CANCELLED"], default: "ACTIVE" },
+    // Delivery confirmation (evidence for the top tier)
+    deliveredAt: { type: String },
+    deliveryConfirmedBy: { type: String },
+    onTime: { type: Boolean },
   },
   { timestamps: true }
 );
@@ -253,6 +268,8 @@ const settingsSchema = new Schema<SettingsDocument>(
     notificationEmail: { type: String, required: true },
     weeklyDigestEnabled: { type: Boolean, required: true },
     timezone: { type: String, required: true },
+    signupEnabled: { type: Boolean },
+    allowedSignupDomains: [{ type: String }],
   },
   { timestamps: true }
 );
@@ -270,6 +287,19 @@ const userSchema = new Schema<User>(
       required: true,
     },
     studentId: { type: String },
+    // Self sign-up. Accounts without a status (all pre-existing ones) are treated as ACTIVE.
+    status: { type: String, enum: ["ACTIVE", "PENDING_APPROVAL", "REJECTED"] },
+    signup: {
+      registrationNumber: { type: String },
+      program: { type: String },
+      course: { type: String },
+      year: { type: Number },
+      requestedAt: { type: String },
+      attempts: { type: Number },
+      decidedBy: { type: String },
+      decidedAt: { type: String },
+      rejectionReason: { type: String },
+    },
     preferences: {
       celebrations: { type: Boolean },
       reduceMotion: { type: Boolean },
@@ -292,5 +322,30 @@ export const BlackoutPeriodModel = mongoose.models.BlackoutPeriod || mongoose.mo
 export const ProposalModel = mongoose.models.Proposal || mongoose.model<Proposal>("Proposal", proposalSchema);
 export const SafeguardModel = mongoose.models.Safeguard || mongoose.model<Safeguard>("Safeguard", safeguardSchema);
 export const SettingsModel = mongoose.models.Settings || mongoose.model<SettingsDocument>("Settings", settingsSchema);
+// Tier suggestions: recommendations for an administrator to approve or dismiss
+const tierSuggestionSchema = new Schema<TierSuggestion>(
+  {
+    id: { type: String, required: true, unique: true },
+    studentId: { type: String, required: true, index: true },
+    studentName: { type: String, required: true },
+    currentTier: { type: String, enum: ["TIER_1", "TIER_2", "TIER_3", "TIER_4"], required: true },
+    suggestedTier: { type: String, enum: ["TIER_1", "TIER_2", "TIER_3", "TIER_4"], required: true },
+    reasons: [{ type: String }],
+    notes: [{ type: String }],
+    status: { type: String, enum: ["PENDING", "APPROVED", "DISMISSED"], default: "PENDING", index: true },
+    createdAt: { type: String, required: true },
+    decidedBy: { type: String },
+    decidedAt: { type: String },
+  },
+  { timestamps: false }
+);
+
+// At most one PENDING suggestion per student (decided ones are kept as history)
+tierSuggestionSchema.index({ studentId: 1 }, { unique: true, partialFilterExpression: { status: "PENDING" } });
+
+export const TierSuggestionModel = mongoose.models.TierSuggestion || mongoose.model<TierSuggestion>("TierSuggestion", tierSuggestionSchema);
+// One account per registration number (only users created through sign-up have one)
+userSchema.index({ "signup.registrationNumber": 1 }, { unique: true, sparse: true });
+
 export const UserModel = mongoose.models.User || mongoose.model<User>("User", userSchema);
 

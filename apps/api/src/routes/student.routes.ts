@@ -11,6 +11,8 @@ import {
   updateStudentTierHandler,
   updateTrainingModuleStatusHandler,
 } from "../controllers/student.controller.js";
+import { getDeliveryRecordHandler } from "../controllers/delivery.controller.js";
+import { completeOnboardingHandler, skipOnboardingHandler } from "../controllers/onboarding.controller.js";
 import { authenticate, requirePermission, requireSelfOrPermission } from "../middleware/auth.middleware.js";
 
 const router = Router();
@@ -21,6 +23,7 @@ router.get("/:id", authenticate, requireSelfOrPermission("STUDENT_RECORDS_VIEW")
 router.get("/:id/readiness", authenticate, requireSelfOrPermission("STUDENT_RECORDS_VIEW"), getStudentReadinessHandler);
 router.get("/:id/tier", authenticate, requireSelfOrPermission("STUDENT_RECORDS_VIEW"), getStudentTierHandler);
 router.get("/:id/training", authenticate, requireSelfOrPermission("STUDENT_RECORDS_VIEW"), getStudentTrainingHandler);
+router.get("/:id/delivery-record", authenticate, requireSelfOrPermission("STUDENT_RECORDS_VIEW"), getDeliveryRecordHandler);
 
 // Interactive training update (the student themself, or a mentor/coordinator/faculty/admin)
 router.patch("/:id/training/:moduleId", authenticate, requireSelfOrPermission("STUDENT_SUPERVISE"), updateTrainingModuleStatusHandler);
@@ -29,6 +32,10 @@ router.patch("/:id/training/:moduleId", authenticate, requireSelfOrPermission("S
 router.patch("/:id/profile", authenticate, requireSelfOrPermission("PROFILE_EDIT_ANY"), updateStudentProfileHandler);
 router.put("/:id/photo", authenticate, requireSelfOrPermission("PROFILE_EDIT_ANY"), updateStudentPhotoHandler);
 router.delete("/:id/photo", authenticate, requireSelfOrPermission("PROFILE_EDIT_ANY"), deleteStudentPhotoHandler);
+
+// First-login onboarding (the student themself, or an administrator on their behalf)
+router.put("/:id/onboarding", authenticate, requireSelfOrPermission("PROFILE_EDIT_ANY"), completeOnboardingHandler);
+router.post("/:id/onboarding/skip", authenticate, requireSelfOrPermission("PROFILE_EDIT_ANY"), skipOnboardingHandler);
 
 // Admin-only Tier update endpoint
 router.patch("/:id/tier", authenticate, requirePermission("TIER_UPDATE"), updateStudentTierHandler);

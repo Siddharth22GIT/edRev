@@ -70,7 +70,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new Error(data.message || "Invalid credentials.");
+      // `code` is ACCOUNT_PENDING / ACCOUNT_REJECTED for self-signed-up accounts awaiting a decision
+      const error = new Error(data.message || "Invalid credentials.") as Error & { code?: string };
+      error.code = data.code;
+      throw error;
     }
 
     setToken(data.token);

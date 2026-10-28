@@ -5,13 +5,15 @@ import Link from "next/link";
 import type { Student } from "@edurev/types";
 import { students as mockStudents } from "@edurev/mock-data";
 import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { RequirePermission } from "@/components/ui/require-permission";
+import { SignupRequestsPanel } from "@/components/students/signup-requests-panel";
+import { TierSuggestionsPanel } from "@/components/students/tier-suggestions-panel";
 import { SkeletonRows } from "@/components/ui/skeleton";
+import { TierBadge } from "@/components/ui/tier-badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useApi } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
@@ -33,6 +35,7 @@ export function StudentsScreen() {
 function StudentsList() {
   const [students, setStudents] = useState<Student[]>(mockStudents);
   const [loading, setLoading] = useState(true);
+  const [version, setVersion] = useState(0);
   const { apiFetch } = useApi();
 
   useEffect(() => {
@@ -47,7 +50,8 @@ function StudentsList() {
         // Fallback to mock data if API offline
       })
       .finally(() => setLoading(false));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version]);
 
   return (
     <div className="space-y-7">
@@ -56,6 +60,8 @@ function StudentsList() {
         title="Institutional Students"
         description="Track student activity, readiness progression, training milestones, and official tier certifications."
       />
+      <SignupRequestsPanel onDecided={() => setVersion((v) => v + 1)} />
+      <TierSuggestionsPanel onDecided={() => setVersion((v) => v + 1)} />
       <Card className="overflow-hidden border-[#E6E6E6] bg-white shadow-card">
         {loading ? (
           <SkeletonRows rows={4} />
@@ -76,9 +82,7 @@ function StudentsList() {
               </td>
               <td className="px-5 py-4 text-xs font-semibold text-[#666D7A]">{student.program}</td>
               <td className="px-5 py-4">
-                <Badge tone={student.tier === "TIER_4" ? "orange" : student.tier === "TIER_3" ? "orange" : student.tier === "TIER_2" ? "blue" : "slate"}>
-                  {student.tier}
-                </Badge>
+                <TierBadge tier={student.tier} />
               </td>
               <td className="min-w-36 px-5 py-4">
                 <ProgressBar tone="orange" value={student.trainingProgress ?? student.progress} />
