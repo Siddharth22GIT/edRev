@@ -6,15 +6,14 @@ Pick up here next session. Project rules and conventions are in `CLAUDE.md`.
 
 ## State of the repo
 
-- Last commits: `sign-up`, `dashboard`, `ui-changes`.
-- **Not committed yet:** Phase 3 (My Messages) and the Tailwind `lib/` fix (about 22 files: `messages` routes, service and tests, `/messages` page, composer, bell, dashboard cards, `tailwind.config.ts`).
-- API tests: 126 total, all passing in both modes (`npm test` and `npm run test:mock --workspace @edurev/api`).
+- Last commits (30 Oct): Tailwind fix, Messages (Phase 3), security (Phase 1), docs.
+- Everything is committed. Next: Phase 2 (bids and allocation), which needs decisions D1–D8.
+- API tests: 141 total, all passing in both modes (`npm test` and `npm run test:mock --workspace @edurev/api`).
 
-## Phase 1 (security): done 30 Oct, not committed
+## Phase 1 (security): done and committed 30 Oct (3ba0e49)
 
 See [`docs/modules/security.md`](docs/modules/security.md). 141 tests pass in both modes; web build OK; checked in Chrome for a student and an analyst.
 **Restart `npm run dev`** (Next.js was patched from 15.5.25 to 15.5.28, and `next.config.ts` changed).
-Commit note: `app.ts`, `models/index.ts`, `packages/types/src/index.ts`, `messages.routes.ts` and `CLAUDE.md` contain both Messages (Phase 3) and security changes.
 
 ## To-do: tomorrow
 
@@ -24,7 +23,7 @@ Fixed by the user. The cause was unrelated to the layout, so the planned layout 
 
 ### 2. Commit
 
-- [ ] Commit Phase 3 (Messages) and the Tailwind fix as separate commits. (No longer blocked: Send is fixed.)
+- [x] Committed: `c152a50` Tailwind fix, `e72bf51` Messages, `3ba0e49` security, `97ac0b4` docs.
 
 ### 3. Loose ends from earlier phases
 
