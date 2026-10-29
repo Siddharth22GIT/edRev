@@ -211,9 +211,26 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
 
   const role = user?.role || "STUDENT";
   const studentId = user?.studentId || user?.id || "stu-202";
-  const mine = bids.some((b) => b.studentId === studentId);
   const canAllocate = can(role, "OPPORTUNITY_ALLOCATE");
+  const canReassign = can(role, "ALLOCATION_REASSIGN");
   const [confirmingDelivery, setConfirmingDelivery] = useState(false);
+  // E5: the student's own bid (a withdrawn one doesn't block bidding again)
+  const myBid = bids.find((b) => b.studentId === studentId) ?? null;
+  const [editing, setEditing] = useState(false);
+  const [confirmingWithdraw, setConfirmingWithdraw] = useState(false);
+  // E1b: staff moving the work to another bidder
+  const [reassigningTo, setReassigningTo] = useState<string | null>(null);
+  const [reassignReason, setReassignReason] = useState("");
+  // E2: mirrors the server's rules so the right controls show (the server still decides)
+  const isAllocated = opportunity.status === "ALLOCATED" || (allocation !== null && allocation.status !== "CANCELLED");
+  const closesAt = opportunity.bidsCloseAt ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(opportunity.bidsCloseAt) ? `${opportunity.bidsCloseAt}T23:59:59` : opportunity.bidsCloseAt) : null;
+  const bidsClosedReason = isAllocated
+    ? "This opportunity has already been allocated to a student."
+    : !["OPEN", "UNDER_REVIEW"].includes(opportunity.status)
+      ? "Bidding is closed for this opportunity."
+      : closesAt && Date.now() > closesAt.getTime()
+        ? `Bidding closed on ${formatDate(opportunity.bidsCloseAt!)}.`
+        : null;
 
   // Staff confirm delivery once the student has handed over the work (records on-time evidence)
   const confirmDelivery = async () => {
@@ -300,23 +317,28 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
     }
     setState("loading");
     try {
-      const r = await apiFetch(`/opportunities/${opportunity.id}/bids`, {
-        method: "POST",
+      // E5: editing sends only the changes to the student's own bid ("mine")
+      const r = await apiFetch(editing ? `/opportunities/${opportunity.id}/bids/mine` : `/opportunities/${opportunity.id}/bids`, {
+        method: editing ? "PATCH" : "POST",
         body: JSON.stringify({
           proposedAmount: Number(amount),
           estimatedCompletionTime: days,
           message,
           relevantSkills: skills,
           proposalPdfUrl: pdfDataUrl || undefined,
-          proposalPdfName: pdfFileName || undefined,
+          proposalPdfName: pdfDataUrl ? pdfFileName || undefined : undefined,
         }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.message);
-      setBids((x) => [...x, j.data]);
+      setBids((x) => [...x.filter((b) => b.id !== j.data.id), j.data]);
       setState("success");
-      setNotice("Bid and proposal submitted successfully.");
-      celebrate();
+      // E4: the bid is accepted, but the student should know about these
+      const warnings: string[] = Array.isArray(j.warnings) ? j.warnings : [];
+      const done = editing ? "Your bid was updated." : "Bid and proposal submitted successfully.";
+      setNotice(warnings.length ? `${done} Please note: ${warnings.join(" ")}` : done);
+      if (!editing) celebrate();
+      setEditing(false);
       setPdfDataUrl(null);
       setPdfFileName(null);
       setPdfFileSize(null);
@@ -326,6 +348,62 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
       setNotice(e instanceof Error ? e.message : "Unable to submit bid.");
     }
   };
+
+  const startEditing = () => {
+    if (!myBid) return;
+    setAmount(String(myBid.proposedAmount));
+    setDays(myBid.estimatedCompletionTime);
+    setSkills(myBid.relevantSkills);
+    setMessage(myBid.message);
+    setPdfDataUrl(null);
+    setPdfFileName(null);
+    setPdfFileSize(null);
+    setNotice("");
+    setEditing(true);
+  };
+
+  // E5: the student withdraws their own bid (they can bid again while bidding is open)
+  const withdraw = async () => {
+    setState("loading");
+    try {
+      const r = await apiFetch(`/opportunities/${opportunity.id}/bids/mine/withdraw`, { method: "POST" });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.message);
+      setBids((x) => x.map((b) => (b.id === j.data.id ? j.data : b)));
+      setState("success");
+      setNotice("Your bid was withdrawn. You can bid again while bidding is open.");
+    } catch (e) {
+      setState("error");
+      setNotice(e instanceof Error ? e.message : "Could not withdraw your bid.");
+    } finally {
+      setConfirmingWithdraw(false);
+    }
+  };
+
+  // E1b: move the allocated work to another bidder, with a reason that is kept in the history
+  const reassign = async (toStudentId: string) => {
+    setState("loading");
+    try {
+      const r = await apiFetch(`/opportunities/${opportunity.id}/reassign`, {
+        method: "POST",
+        body: JSON.stringify({ studentId: toStudentId, reason: reassignReason }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.message);
+      setState("success");
+      setNotice(`Work reassigned to ${toStudentId}. The previous student has been told.`);
+      setReassigningTo(null);
+      setReassignReason("");
+      await loadData();
+      workQueue.refresh();
+    } catch (e) {
+      setState("error");
+      setNotice(e instanceof Error ? e.message : "Could not reassign.");
+    }
+  };
+
+  const bidTone = (status: Bid["status"]) =>
+    status === "ALLOCATED" ? "green" : status === "REJECTED" ? "red" : status === "WITHDRAWN" ? "slate" : status === "SHORTLISTED" ? "violet" : "blue";
 
   const allocate = async (bidderStudentId: string) => {
     if (!user) {
@@ -393,6 +471,21 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
               <span className="mt-0.5 block font-bold text-[#3978B8] text-sm">{allocation.slaDeadline ? formatDate(allocation.slaDeadline) : "72 hours"}</span>
             </div>
           </div>
+
+          {(allocation.directAssignmentReason || (allocation.reassignments?.length ?? 0) > 0) && (
+            <div className="mt-3 space-y-1 rounded-xl border border-[#C2DCF2]/50 bg-white/70 p-3 text-xs text-[#666D7A]">
+              {allocation.directAssignmentReason && (
+                <p>
+                  Assigned directly (no bid): <span className="text-[#30343B]">&ldquo;{allocation.directAssignmentReason}&rdquo;</span>
+                </p>
+              )}
+              {allocation.reassignments?.map((r, i) => (
+                <p key={`${r.at}-${i}`}>
+                  Reassigned from <strong className="text-[#30343B]">{r.fromStudentId}</strong> to <strong className="text-[#30343B]">{r.toStudentId}</strong> by {r.by} on {formatDate(r.at)}: <span className="text-[#30343B]">&ldquo;{r.reason}&rdquo;</span>
+                </p>
+              ))}
+            </div>
+          )}
 
           {/* Delivery */}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#C2DCF2]/70 pt-4">
@@ -463,17 +556,63 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
         {/* STUDENT BID FORM */}
         {role === "STUDENT" ? (
           <form className="mt-6 grid gap-4" onSubmit={submit}>
-            {mine ? (
-              <div className="rounded-xl border border-amber-200 bg-[#FEF6EE] p-4 text-sm font-semibold text-[#C27803] flex items-center gap-2">
-                <IconCheckCircle size={18} />
-                <span>You have already submitted a bid for this opportunity.</span>
+            {myBid && myBid.status !== "WITHDRAWN" && !editing ? (
+              <div className="space-y-3 rounded-xl border border-[#FBD7B3] bg-[#FEF6EE]/70 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <IconCheckCircle className="text-[#C27803]" size={18} />
+                  <span className="text-sm font-bold text-[#30343B]">Your bid</span>
+                  <Badge tone={bidTone(myBid.status)}>{myBid.status}</Badge>
+                </div>
+                <p className="text-sm text-[#30343B]">
+                  {opportunity.currency} {myBid.proposedAmount.toLocaleString("en-IN")} · {myBid.estimatedCompletionTime}
+                  {myBid.editedAt && <span className="text-xs text-[#666D7A]"> · edited {formatDate(myBid.editedAt)}</span>}
+                </p>
+                <p className="text-xs text-[#666D7A]">
+                  {myBid.status === "ALLOCATED"
+                    ? "You were selected for this work. Your delivery deadline is shown above."
+                    : myBid.status === "REJECTED"
+                      ? "This work went to another student this time. Keep an eye on new opportunities for your tier."
+                      : myBid.status === "SHORTLISTED"
+                        ? "You're on the shortlist. Staff will decide soon."
+                        : "Staff will review the bids and choose one. Until then you can edit or withdraw your bid."}
+                </p>
+                {["SUBMITTED", "SHORTLISTED"].includes(myBid.status) && (
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {myBid.status === "SUBMITTED" && !bidsClosedReason && (
+                      <Button className="text-xs" disabled={state === "loading"} onClick={startEditing} type="button" variant="secondary">
+                        Edit bid
+                      </Button>
+                    )}
+                    {confirmingWithdraw ? (
+                      <>
+                        <span className="text-xs font-semibold text-[#30343B]">Withdraw this bid?</span>
+                        <Button className="text-xs" disabled={state === "loading"} onClick={() => setConfirmingWithdraw(false)} type="button" variant="secondary">
+                          Keep it
+                        </Button>
+                        <Button className="text-xs" disabled={state === "loading"} onClick={withdraw} type="button" variant="primary">
+                          {state === "loading" ? "Withdrawing…" : "Yes, withdraw"}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button className="text-xs" disabled={state === "loading"} onClick={() => setConfirmingWithdraw(true)} type="button" variant="secondary">
+                        Withdraw
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
-            ) : opportunity.status === "ALLOCATED" ? (
-              <div className="rounded-xl border border-[#E6E6E6] bg-[#F7F7F6] p-4 text-sm font-medium text-[#666D7A]">
-                This opportunity has already been allocated to a student.
-              </div>
+            ) : !editing && bidsClosedReason ? (
+              <div className="rounded-xl border border-[#E6E6E6] bg-[#F7F7F6] p-4 text-sm font-medium text-[#666D7A]">{bidsClosedReason}</div>
             ) : (
               <>
+                {myBid?.status === "WITHDRAWN" && !editing && (
+                  <p className="rounded-xl border border-[#E6E6E6] bg-[#F7F7F6] px-4 py-3 text-xs text-[#666D7A]">You withdrew your bid. You can bid again below.</p>
+                )}
+                {editing && (
+                  <p className="rounded-xl border border-[#C2DCF2] bg-[#EFF6FC] px-4 py-3 text-xs font-semibold text-[#204D7D]">
+                    Editing your bid. Attach a new PDF only if you want to replace the current one.
+                  </p>
+                )}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-[#666D7A]" htmlFor="proposedAmount">
@@ -585,11 +724,16 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
                   {pdfError && <p className="mt-1.5 text-xs font-semibold text-rose-600">{pdfError}</p>}
                 </div>
 
-                <div className="pt-2">
+                <div className="flex flex-wrap gap-2 pt-2">
                   <Button variant="primary" disabled={state === "loading"} type="submit">
                     <IconSend size={16} />
-                    <span>{state === "loading" ? "Submitting Bid…" : "Submit Bid to Opportunity"}</span>
+                    <span>{state === "loading" ? (editing ? "Saving…" : "Submitting Bid…") : editing ? "Save changes" : "Submit Bid to Opportunity"}</span>
                   </Button>
+                  {editing && (
+                    <Button disabled={state === "loading"} onClick={() => setEditing(false)} type="button" variant="secondary">
+                      Cancel
+                    </Button>
+                  )}
                 </div>
               </>
             )}
@@ -605,7 +749,7 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
                     <div className="space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-bold text-[#30343B]">{b.studentId}</span>
-                        <Badge tone={b.status === "ALLOCATED" ? "green" : "blue"}>{b.status}</Badge>
+                        <Badge tone={bidTone(b.status)}>{b.status}</Badge>
                         {b.proposalPdfUrl && (
                           <span className="inline-flex items-center gap-1 rounded-md bg-[#FEF6EE] px-2 py-0.5 text-xs font-bold text-[#C27803] border border-[#F2A65A]/40">
                             📄 Proposal Document Attached
@@ -628,6 +772,29 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
                       )}
                     </div>
 
+                    {reassigningTo === b.studentId ? (
+                      <div className="flex w-full shrink-0 flex-col gap-2 sm:w-80">
+                        <label className="text-xs font-bold text-[#30343B]" htmlFor={`reassign-${b.id}`}>
+                          Why move the work to {b.studentId}?
+                        </label>
+                        <input
+                          id={`reassign-${b.id}`}
+                          className="w-full rounded-xl border border-[#E6E6E6] bg-white p-2 text-sm text-[#30343B] outline-none focus:border-[#3978B8] focus:ring-2 focus:ring-[#C2DCF2]"
+                          maxLength={500}
+                          onChange={(e) => setReassignReason(e.target.value)}
+                          placeholder="e.g. The allocated student is unwell"
+                          value={reassignReason}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button className="text-xs" disabled={state === "loading"} onClick={() => setReassigningTo(null)} variant="secondary">
+                            Cancel
+                          </Button>
+                          <Button className="text-xs" disabled={state === "loading" || reassignReason.trim().length < 5} onClick={() => reassign(b.studentId)} variant="primary">
+                            {state === "loading" ? "Reassigning…" : "Confirm reassign"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
                     <div className="flex items-center gap-2 shrink-0">
                       <Button
                         variant="secondary"
@@ -636,7 +803,20 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
                       >
                         Review Proposal & Allocate →
                       </Button>
-                      {canAllocate && opportunity.status !== "ALLOCATED" && b.status !== "ALLOCATED" && (
+                      {canReassign && allocation && !["COMPLETED", "CANCELLED"].includes(allocation.status) && b.studentId !== allocation.studentId && b.status !== "WITHDRAWN" && (
+                        <Button
+                          variant="blue"
+                          className="text-xs"
+                          disabled={state === "loading"}
+                          onClick={() => {
+                            setReassignReason("");
+                            setReassigningTo(b.studentId);
+                          }}
+                        >
+                          Reassign here
+                        </Button>
+                      )}
+                      {canAllocate && !isAllocated && ["SUBMITTED", "SHORTLISTED"].includes(b.status) && (
                         <Button
                           variant="primary"
                           className="text-xs"
@@ -648,6 +828,7 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
                         </Button>
                       )}
                     </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -803,7 +984,7 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
               {canAllocate && (
                 <Button
                   variant="primary"
-                  disabled={state === "loading" || reviewingBid.status === "ALLOCATED" || opportunity.status === "ALLOCATED"}
+                  disabled={state === "loading" || isAllocated || !["SUBMITTED", "SHORTLISTED"].includes(reviewingBid.status)}
                   onClick={async () => {
                     await allocate(reviewingBid.studentId);
                     setReviewingBid(null);
@@ -811,7 +992,7 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
                 >
                   <IconUserCheck size={16} />
                   <span>
-                    {state === "loading" ? "Allocating…" : reviewingBid.status === "ALLOCATED" || opportunity.status === "ALLOCATED" ? "Already Allocated" : "Allocate Work to Student"}
+                    {state === "loading" ? "Allocating…" : isAllocated ? "Already Allocated" : !["SUBMITTED", "SHORTLISTED"].includes(reviewingBid.status) ? `Bid ${reviewingBid.status.toLowerCase()}` : "Allocate Work to Student"}
                   </span>
                 </Button>
               )}

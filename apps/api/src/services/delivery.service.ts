@@ -2,6 +2,7 @@ import type { Allocation, DeliveryRecord } from "@edurev/types";
 import { allocations as mockAllocations, getOpportunity as mockGetOpportunity, students as mockStudents } from "@edurev/mock-data";
 import { isDbConnected } from "../config/db.js";
 import { AllocationModel, OpportunityModel, StudentModel } from "../models/index.js";
+import { deadlineInstant, getInstitutionTimeZone } from "../utils/time.js";
 
 function httpError(message: string, statusCode: number) {
   const err: any = new Error(message);
@@ -9,14 +10,17 @@ function httpError(message: string, statusCode: number) {
   return err;
 }
 
-/** Delivered by the end of the opportunity's due date counts as on time. */
-function isOnTime(deliveredAt: Date, deadline: string | undefined): boolean {
-  if (!deadline) return true;
-  const due = new Date(deadline);
-  if (Number.isNaN(due.getTime())) return true;
-  // Date-only deadlines ("2026-09-20") are due by the end of that day
-  if (/^\d{4}-\d{2}-\d{2}$/.test(deadline)) due.setUTCHours(23, 59, 59, 999);
-  return deliveredAt.getTime() <= due.getTime();
+/**
+ * D6 / E9: on time = delivered by the agreed deadline. The agreed deadline is the allocation's `slaDeadline`
+ * (fixed at allocation), but never earlier than the client's due date, so older allocations whose SLA date
+ * was an automatic default aren't judged more strictly than the client asked. Date-only values end at
+ * midnight in the institution's timezone (not UTC).
+ */
+function isOnTime(deliveredAt: Date, clientDeadline: string | undefined, agreedDeadline: string | undefined, timeZone: string): boolean {
+  const dues = [deadlineInstant(clientDeadline, timeZone), deadlineInstant(agreedDeadline, timeZone)].filter((d): d is Date => d !== null);
+  if (dues.length === 0) return true;
+  const due = Math.max(...dues.map((d) => d.getTime()));
+  return deliveredAt.getTime() <= due;
 }
 
 /**
@@ -38,7 +42,7 @@ export async function confirmDeliveryService(opportunityId: string, confirmedBy:
       slaStatus: "COMPLETED",
       deliveredAt: deliveredAt.toISOString(),
       deliveryConfirmedBy: confirmedBy,
-      onTime: isOnTime(deliveredAt, opportunity?.deadline),
+      onTime: isOnTime(deliveredAt, opportunity?.deadline, allocation.slaDeadline, await getInstitutionTimeZone()),
     });
     await allocation.save();
     await StudentModel.updateOne({ id: allocation.studentId }, { $inc: { projectsCompleted: 1 } });
@@ -55,7 +59,7 @@ export async function confirmDeliveryService(opportunityId: string, confirmedBy:
     slaStatus: "COMPLETED",
     deliveredAt: deliveredAt.toISOString(),
     deliveryConfirmedBy: confirmedBy,
-    onTime: isOnTime(deliveredAt, mockGetOpportunity(opportunityId)?.deadline),
+    onTime: isOnTime(deliveredAt, mockGetOpportunity(opportunityId)?.deadline, allocation.slaDeadline, await getInstitutionTimeZone()),
   });
   const student = mockStudents.find((s) => s.id === allocation.studentId);
   if (student) student.projectsCompleted += 1;

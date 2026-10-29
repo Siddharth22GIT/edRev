@@ -3,6 +3,7 @@ import { DEFAULT_SIGNUP_SETTINGS, type AccountStatus, type SignupRequest, type S
 import { isDbConnected } from "../config/db.js";
 import { AcademicSnapshotModel, HourLogModel, StudentModel, UserModel } from "../models/index.js";
 import { getSettingsService } from "./analytics.service.js";
+import { dateInTimeZone, getInstitutionTimeZone } from "../utils/time.js";
 
 const MAX_ATTEMPTS = 3;
 
@@ -180,7 +181,8 @@ export async function approveSignupService(userId: string, decidedBy: string): P
     trainingProgress: 0,
     progress: 0,
     cgpa: 0,
-    joinedAt: new Date().toISOString().slice(0, 10),
+    // E9: today's date where the institution is (UTC could still be "yesterday" in India before 05:30)
+    joinedAt: dateInTimeZone(new Date(), await getInstitutionTimeZone()),
     projectsCompleted: 0,
     earnings: 0,
     mentor: "Unassigned",

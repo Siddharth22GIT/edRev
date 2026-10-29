@@ -82,6 +82,8 @@ const opportunitySchema = new Schema<Opportunity>(
     deliverables: [{ type: String }],
     updatedAt: { type: String, required: true },
     allocatedStudentId: { type: String },
+    // E2: optional moment bidding closes
+    bidsCloseAt: { type: String },
   },
   { timestamps: true }
 );
@@ -100,6 +102,9 @@ const bidSchema = new Schema<Bid>(
     proposalPdfUrl: { type: String },
     proposalPdfName: { type: String },
     createdAt: { type: String, required: true },
+    // E5: student edits and withdrawals
+    editedAt: { type: String },
+    withdrawnAt: { type: String },
   },
   { timestamps: true }
 );
@@ -129,6 +134,18 @@ const allocationSchema = new Schema<AllocationDocument>(
     deliveredAt: { type: String },
     deliveryConfirmedBy: { type: String },
     onTime: { type: Boolean },
+    // E1b / D7: reassignment history and direct assignments
+    reassignments: [
+      {
+        _id: false,
+        fromStudentId: { type: String, required: true },
+        toStudentId: { type: String, required: true },
+        by: { type: String, required: true },
+        at: { type: String, required: true },
+        reason: { type: String, required: true },
+      },
+    ],
+    directAssignmentReason: { type: String },
   },
   { timestamps: true }
 );
@@ -157,6 +174,9 @@ const earningsEntrySchema = new Schema<EarningsEntry>(
   },
   { timestamps: true }
 );
+
+// E6: the same earning (student + platform + amount + date) can only be recorded once, even on a double-click
+earningsEntrySchema.index({ studentId: 1, platformName: 1, originalAmount: 1, earningDate: 1 }, { unique: true });
 
 // 6. PlatformAccount Model
 const platformAccountSchema = new Schema<PlatformAccount>(

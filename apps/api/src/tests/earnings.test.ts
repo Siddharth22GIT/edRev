@@ -365,7 +365,7 @@ describe("Earnings Security & Integrity Suite", () => {
           rejectionReason: "Another rejection attempt",
         }),
       });
-      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.status, 409); // E6: already decided is a conflict
       const json = (await res.json()) as any;
       assert.match(json.message, /already been rejected/i);
     });
@@ -436,7 +436,7 @@ describe("Earnings Security & Integrity Suite", () => {
         body: JSON.stringify({ status: "VERIFIED" }),
       });
 
-      assert.strictEqual(res.status, 400);
+      assert.strictEqual(res.status, 409); // E6: already decided is a conflict
       const json = (await res.json()) as any;
       assert.match(json.message, /already been verified/i);
 

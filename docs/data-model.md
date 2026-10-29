@@ -43,3 +43,11 @@ The baseline TypeScript contracts are defined in `packages/types/src/index.ts`. 
 ## Security fields (Phase 1)
 
 - `users.tokenVersion` (number, optional, hidden from normal reads): every login token carries it as `tv`. Increasing it ends all of that user's sessions; a password change does this. See [modules/security.md](modules/security.md).
+
+## Bids and allocation fields (Phase 2)
+
+- `opportunities.bidsCloseAt` (optional): when bidding closes.
+- `bids.editedAt`, `bids.withdrawnAt` (optional). New bid ids are `bid-<uuid>`.
+- `allocations.reassignments[]` (`fromStudentId, toStudentId, by, at, reason`) and `allocations.directAssignmentReason` (optional).
+- `earningsentries`: unique index on `{ studentId, platformName, originalAmount, earningDate }`.
+- Details: [modules/bids-and-allocation.md](modules/bids-and-allocation.md).

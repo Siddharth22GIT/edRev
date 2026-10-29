@@ -32,12 +32,17 @@ export function Topbar({ onMenuClick, onOpenSearch }: { onMenuClick: () => void;
     return () => document.removeEventListener("mousedown", close);
   }, [newMenuOpen]);
 
-  // Surface the API's in-memory fallback instead of letting it go unnoticed
+  // Surface the API's in-memory fallback instead of letting it go unnoticed. E11: re-checked every minute,
+  // so a database that drops mid-session shows up too.
   useEffect(() => {
-    fetch(`${API_BASE}/health`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((health: HealthStatus | null) => setDemoMode(health?.db === "mock"))
-      .catch(() => setDemoMode(false));
+    const check = () =>
+      fetch(`${API_BASE}/health`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((health: HealthStatus | null) => setDemoMode(health?.db === "mock"))
+        .catch(() => setDemoMode(false));
+    check();
+    const timer = window.setInterval(check, 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   return (
@@ -101,7 +106,9 @@ export function Topbar({ onMenuClick, onOpenSearch }: { onMenuClick: () => void;
         )}
         {demoMode && (
           <span title="MongoDB is not connected. The API is serving in-memory demo data and changes are not saved.">
-            <Badge tone="amber">Demo data mode</Badge>
+            <Badge tone="amber">
+              Demo data mode<span className="hidden xl:inline"> · changes won&apos;t be saved</span>
+            </Badge>
           </span>
         )}
         {user ? (
