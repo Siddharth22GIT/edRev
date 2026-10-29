@@ -11,6 +11,7 @@ import {
 } from "../services/opportunity.service.js";
 import { can } from "@edurev/types";
 import { ownStudentId } from "../middleware/auth.middleware.js";
+import { proposalPdfProblem } from "../utils/uploads.js";
 
 const errorResponse = (res: Response, message: string, status = 400) =>
   res.status(status).json({ message });
@@ -68,14 +69,25 @@ export async function getBidProposalDocumentHandler(req: Request, res: Response)
       return;
     }
 
-    const disposition = req.query.disposition === "inline" ? "inline" : "attachment";
-    const encodedFilename = encodeURIComponent(doc.filename);
+    // S3: the type comes from the file's real bytes, never from what the uploader declared. Only real PDFs
+    // may open in the browser; anything else is a plain download, so uploaded HTML/SVG can never run.
+    const mimeType = doc.isPdf
+      ? "application/pdf"
+      : doc.isDocx
+        ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        : "application/octet-stream";
+    const disposition = doc.isPdf && req.query.disposition === "inline" ? "inline" : "attachment";
+    // Header-safe name: no control characters; an ASCII fallback plus the exact UTF-8 name
+    const safeName = doc.filename.replace(/[\x00-\x1f\x7f]/g, "_");
+    const asciiName = safeName.replace(/[^\x20-\x7e]/g, "_");
+    const encodedFilename = encodeURIComponent(safeName);
 
-    res.setHeader("Content-Type", doc.mimeType);
+    res.setHeader("Content-Type", mimeType);
     res.setHeader("Content-Length", doc.buffer.length);
+    res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader(
       "Content-Disposition",
-      `${disposition}; filename="${doc.filename}"; filename*=UTF-8''${encodedFilename}`
+      `${disposition}; filename="${asciiName}"; filename*=UTF-8''${encodedFilename}`
     );
     res.send(doc.buffer);
   } catch (err: any) {
@@ -133,6 +145,13 @@ export async function submitBidHandler(req: Request, res: Response): Promise<voi
 
   if (!proposedAmount || !estimatedCompletionTime || !message || !relevantSkills) {
     errorResponse(res, "All bid fields are required.");
+    return;
+  }
+
+  // S3: the browser checks the file too, but only this check counts
+  const pdfProblem = proposalPdfProblem(proposalPdfUrl);
+  if (pdfProblem) {
+    errorResponse(res, pdfProblem);
     return;
   }
 

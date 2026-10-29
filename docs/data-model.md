@@ -40,3 +40,6 @@ The baseline TypeScript contracts are defined in `packages/types/src/index.ts`. 
 3. **No Platform Earnings Commission**: Individual student earnings are never taxed by the institution.
 4. **Faculty Override**: Hour-cap overrides require `FACULTY_DIRECTOR` authority and audit reasoning.
 
+## Security fields (Phase 1)
+
+- `users.tokenVersion` (number, optional, hidden from normal reads): every login token carries it as `tv`. Increasing it ends all of that user's sessions; a password change does this. See [modules/security.md](modules/security.md).

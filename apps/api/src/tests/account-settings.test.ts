@@ -115,7 +115,13 @@ describe("Account & Institutional Settings Suite", () => {
       }
       assert.strictEqual(res.status, 400);
 
-      assert.strictEqual((await raw("POST", "/auth/password", selfToken, { currentPassword: TEMP_PASSWORD, newPassword: "NewPass456" })).status, 200);
+      const changed = await raw("POST", "/auth/password", selfToken, { currentPassword: TEMP_PASSWORD, newPassword: "NewPass456" });
+      assert.strictEqual(changed.status, 200);
+      // S5: the change ends every existing session; the response carries a fresh token for this one
+      assert.strictEqual(typeof changed.json.token, "string");
+      assert.strictEqual((await raw("GET", "/auth/me", selfToken)).status, 401, "old token no longer works");
+      selfToken = changed.json.token;
+      assert.strictEqual((await raw("GET", "/auth/me", selfToken)).status, 200, "fresh token works");
       assert.strictEqual((await raw("POST", "/auth/login", undefined, { email: TEMP_USER.email, password: TEMP_PASSWORD })).status, 401);
       assert.strictEqual((await raw("POST", "/auth/login", undefined, { email: TEMP_USER.email, password: "NewPass456" })).status, 200);
     });

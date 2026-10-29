@@ -122,6 +122,7 @@ function PreferencesCard() {
 
 function PasswordCard() {
   const { apiFetch } = useApi();
+  const { replaceToken } = useAuth();
   const { toast } = useToast();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -144,7 +145,9 @@ function PasswordCard() {
       const res = await apiFetch("/auth/password", { method: "POST", body: JSON.stringify({ currentPassword: current, newPassword: next }) });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || "Could not change password.");
-      toast("Password changed. Use it next time you sign in.");
+      // The server ended every other session; keep this device signed in with the fresh token
+      if (typeof json.token === "string") replaceToken(json.token);
+      toast("Password changed. You've been signed out on your other devices.");
       setCurrent("");
       setNext("");
       setConfirm("");

@@ -11,6 +11,10 @@ import {
 } from "../controllers/opportunity.controller.js";
 import { confirmDeliveryHandler } from "../controllers/delivery.controller.js";
 import { authenticate, requirePermission } from "../middleware/auth.middleware.js";
+import { limitPerUser } from "../middleware/security.middleware.js";
+
+// S9: per-user write limits (env RATE_LIMIT_BIDS overrides)
+const bidLimit = limitPerUser("bids", 30, 60 * 60 * 1000);
 
 const router = Router();
 
@@ -22,7 +26,7 @@ router.get("/:id/bids", authenticate, getBidsForOpportunityHandler);
 router.get("/:id/bids/:bidId/proposal", authenticate, getBidProposalDocumentHandler);
 router.get("/:id/allocation", authenticate, getAllocationForOpportunityHandler);
 
-router.post("/:id/bids", authenticate, requirePermission("BID_SUBMIT"), submitBidHandler);
+router.post("/:id/bids", authenticate, requirePermission("BID_SUBMIT"), bidLimit, submitBidHandler);
 router.post("/:id/allocate", authenticate, requirePermission("OPPORTUNITY_ALLOCATE"), allocateOpportunityHandler);
 // Staff who allocate work also confirm its delivery (records on-time evidence for the top tier)
 router.post("/:id/delivery", authenticate, requirePermission("OPPORTUNITY_ALLOCATE"), confirmDeliveryHandler);

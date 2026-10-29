@@ -289,6 +289,8 @@ const userSchema = new Schema<User>(
       required: true,
     },
     studentId: { type: String },
+    // S5: part of every login token; increasing it ends all existing sessions. Hidden from normal reads.
+    tokenVersion: { type: Number, select: false },
     // Self sign-up. Accounts without a status (all pre-existing ones) are treated as ACTIVE.
     status: { type: String, enum: ["ACTIVE", "PENDING_APPROVAL", "REJECTED"] },
     signup: {

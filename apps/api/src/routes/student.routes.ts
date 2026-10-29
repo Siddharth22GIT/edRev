@@ -14,6 +14,10 @@ import {
 import { getDeliveryRecordHandler } from "../controllers/delivery.controller.js";
 import { completeOnboardingHandler, skipOnboardingHandler } from "../controllers/onboarding.controller.js";
 import { authenticate, requirePermission, requireSelfOrPermission } from "../middleware/auth.middleware.js";
+import { limitPerUser } from "../middleware/security.middleware.js";
+
+// S9: per-user upload limit (env RATE_LIMIT_UPLOADS overrides)
+const uploadLimit = limitPerUser("uploads", 20, 60 * 60 * 1000);
 
 const router = Router();
 
@@ -30,7 +34,7 @@ router.patch("/:id/training/:moduleId", authenticate, requireSelfOrPermission("S
 
 // Own profile details and photo (the student themself, or an administrator)
 router.patch("/:id/profile", authenticate, requireSelfOrPermission("PROFILE_EDIT_ANY"), updateStudentProfileHandler);
-router.put("/:id/photo", authenticate, requireSelfOrPermission("PROFILE_EDIT_ANY"), updateStudentPhotoHandler);
+router.put("/:id/photo", authenticate, requireSelfOrPermission("PROFILE_EDIT_ANY"), uploadLimit, updateStudentPhotoHandler);
 router.delete("/:id/photo", authenticate, requireSelfOrPermission("PROFILE_EDIT_ANY"), deleteStudentPhotoHandler);
 
 // First-login onboarding (the student themself, or an administrator on their behalf)
