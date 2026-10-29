@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { can, type Permission, type Role } from "@edurev/types";
 
-export type QuickActionId = "new-earning" | "new-opportunity" | "new-proposal" | "change-photo";
+export type QuickActionId = "new-earning" | "new-opportunity" | "new-proposal" | "change-photo" | "new-message";
 
 export interface QuickAction {
   id: QuickActionId;
@@ -17,6 +17,7 @@ export interface QuickAction {
 export const quickActions: QuickAction[] = [
   { id: "new-earning", label: "Log an earning", hint: "Submit freelance income for verification", path: "/earnings", permission: "EARNINGS_SUBMIT" },
   { id: "new-opportunity", label: "Add an opportunity", hint: "Publish client work for students", path: "/opportunities", permission: "OPPORTUNITY_CREATE" },
+  { id: "new-message", label: "Send a message", hint: "Message students or send an announcement", path: "/messages", permission: "MESSAGE_SEND" },
   { id: "new-proposal", label: "Create a proposal", hint: "Start a proposal draft", path: "/proposals", permission: "PROPOSAL_CREATE" },
 ];
 

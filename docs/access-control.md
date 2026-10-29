@@ -37,6 +37,8 @@ Both sides read the same lists, so a button can never appear for a role the API 
 | `ANALYTICS_VIEW` | All staff | `GET /analytics`, `GET /dashboard` (programme reporting is not student-facing) |
 | `SIGNUP_REVIEW` | Cell Coordinator, Administrator | `GET /signup-requests`, `POST /signup-requests/:id/approve` / `reject` |
 | `ACADEMIC_RECORD_MANAGE` | Faculty Director, Administrator | `PUT /academic/:studentId` (official CGPA) |
+| `MESSAGE_SEND` | Guild Lead, Cell Coordinator, Faculty Director, Dean, Administrator | `POST /messages` to selected students, a tier or a program; `POST /messages/audience-preview` |
+| `MESSAGE_BROADCAST_ALL` | Cell Coordinator, Administrator | Audience `ALL_STUDENTS` |
 | `PROPOSAL_CREATE` | All roles | `POST /proposals` (a student is always recorded as the author) |
 
 ## Endpoint rules
@@ -59,6 +61,9 @@ Both sides read the same lists, so a button can never appear for a role the API 
 | `PUT /academic/:studentId` | `ACADEMIC_RECORD_MANAGE`. Official CGPA 0–10; sets eligibility from the required CGPA and keeps the profile CGPA in sync |
 | `POST /opportunities/:id/delivery` | `OPPORTUNITY_ALLOCATE`. Confirms delivery once (409 after), records on-time vs the opportunity due date, adds one completed project |
 | `GET /students/:id/delivery-record` | The student themself, or staff |
+| `GET /messages`, `GET /messages/unread-count`, `GET /messages/:id`, `POST /messages/:id/read` | Any signed-in user, scoped to their own conversations (students: addressed to them and not withdrawn; staff: ones they own). Others' conversations return 404 |
+| `POST /messages/:id/replies` | Students only where the sender allowed replies; a reply to an announcement goes to one private thread with the sender. Staff reply in conversations they own |
+| `POST /messages/:id/withdraw` | The sender or an Administrator |
 | `POST /hours` | Student: own hours only (identity from token). Supervisors: must name a `studentId` |
 | `GET /safeguards`, `/blackouts`, `/settings`, `/proposals` | Any signed-in user |
 | `GET /dashboard`, `/analytics` | `ANALYTICS_VIEW` (staff) |

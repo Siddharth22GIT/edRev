@@ -353,3 +353,30 @@ export function IconLogout({ size = 18, className = "", ...props }: IconProps) {
     </svg>
   );
 }
+
+export function IconMessage({ size = 18, className = "", ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...strokeProps} className={className} {...props}>
+      <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z" />
+      <path d="M8.5 10.5h7M8.5 13.5h4.5" />
+    </svg>
+  );
+}
+
+export function IconBell({ size = 18, className = "", ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...strokeProps} className={className} {...props}>
+      <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+      <path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" />
+    </svg>
+  );
+}
+
+export function IconMegaphone({ size = 18, className = "", ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...strokeProps} className={className} {...props}>
+      <path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z" />
+      <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
+    </svg>
+  );
+}

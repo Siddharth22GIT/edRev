@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { can, TIER_INFO, type DashboardMetrics, type Opportunity, type Student, type StudentReadinessSummary, type Tier } from "@edurev/types";
+import { can, TIER_INFO, type DashboardMetrics, type InboxItem, type Opportunity, type Student, type StudentReadinessSummary, type Tier } from "@edurev/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -27,6 +27,8 @@ import {
   IconEarnings,
   IconFileText,
   IconGraduationCap,
+  IconMegaphone,
+  IconMessage,
   IconPlus,
   IconStudents,
 } from "@/components/ui/icons";
@@ -139,6 +141,17 @@ function StaffHome() {
       items: queue.reviewProposals.slice(0, 3).map((p) => ({ label: p.title, meta: p.studentName, href: "/proposals" })),
       href: "/proposals",
       cta: "Open proposals",
+    });
+  }
+  if (queue.unreadMessages > 0) {
+    tasks.push({
+      id: "messages",
+      tone: "blue",
+      icon: <IconMessage size={18} />,
+      title: `${queue.unreadMessages} conversation${queue.unreadMessages === 1 ? " has" : "s have"} new messages`,
+      items: [],
+      href: "/messages?filter=unread",
+      cta: "Open messages",
     });
   }
   if (can(role, "SIGNUP_REVIEW") && queue.signupRequests.length > 0) {
@@ -313,6 +326,7 @@ function StudentHome() {
   const pathname = usePathname();
   const [readiness, setReadiness] = useState<StudentReadinessSummary | null>(null);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [important, setImportant] = useState<InboxItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -322,7 +336,11 @@ function StudentHome() {
     setLoading(true);
     setError(null);
     try {
-      const [readinessRes, oppRes] = await Promise.all([apiFetch(`/students/${studentId}/readiness`), apiFetch("/opportunities")]);
+      const [readinessRes, oppRes, inboxRes] = await Promise.all([apiFetch(`/students/${studentId}/readiness`), apiFetch("/opportunities"), apiFetch("/messages")]);
+      if (inboxRes.ok) {
+        const inbox: InboxItem[] = (await inboxRes.json()).data ?? [];
+        setImportant(inbox.filter((i) => i.unread && i.conversation.priority === "IMPORTANT"));
+      }
       if (readinessRes.ok) setReadiness((await readinessRes.json()).data ?? null);
       else setError("Couldn't load your readiness profile.");
       if (oppRes.ok) {
@@ -392,6 +410,24 @@ function StudentHome() {
           </Button>
         </Card>
       )}
+
+      {important.map((item) => (
+        <Link
+          className="rise-in flex items-center gap-4 rounded-xl border border-rose-200 bg-rose-50/70 p-4 transition hover:border-rose-300"
+          href={`/messages?c=${item.conversation.id}`}
+          key={item.conversation.id}
+        >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rose-100 text-rose-700">
+            <IconMegaphone size={18} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-bold uppercase tracking-wider text-rose-700">Important · from {item.conversation.staff.name}</span>
+            <span className="block truncate font-bold text-[#30343B]">{item.conversation.subject}</span>
+            <span className="block truncate text-xs text-[#666D7A]">{item.conversation.lastMessagePreview}</span>
+          </span>
+          <span className="shrink-0 text-xs font-bold text-rose-700">Read →</span>
+        </Link>
+      ))}
 
       {student && <ProfileCompletenessCard compact student={student} />}
 

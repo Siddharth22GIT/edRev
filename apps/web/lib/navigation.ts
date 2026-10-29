@@ -3,6 +3,7 @@ import {
   IconAnalytics,
   IconDashboard,
   IconEarnings,
+  IconMessage,
   IconOpportunities,
   IconProposals,
   IconSafeguards,
@@ -19,6 +20,8 @@ export interface NavigationItem {
 
 export const navigation: NavigationItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: IconDashboard },
+  // Everyone has an inbox; only some roles can start messages (students reply)
+  { href: "/messages", label: "Messages", icon: IconMessage },
   { href: "/opportunities", label: "Opportunities", icon: IconOpportunities },
   // Students reach their own record through "My profile"; the cohort list is for staff
   { href: "/students", label: "Students", icon: IconStudents, visibleTo: (role) => can(role, "STUDENT_RECORDS_VIEW") },

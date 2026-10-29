@@ -47,6 +47,10 @@ export const PERMISSIONS = {
   ACADEMIC_RECORD_MANAGE: ["FACULTY_DIRECTOR", "ADMINISTRATOR"],
   /** Approve or reject student self sign-ups. */
   SIGNUP_REVIEW: ["CELL_COORDINATOR", "ADMINISTRATOR"],
+  /** Start messages to students (selected students, a tier or a program). Students can only reply. */
+  MESSAGE_SEND: ["GUILD_LEAD", "CELL_COORDINATOR", "FACULTY_DIRECTOR", "DEAN", "ADMINISTRATOR"],
+  /** Send an announcement to every student. */
+  MESSAGE_BROADCAST_ALL: ["CELL_COORDINATOR", "ADMINISTRATOR"],
   /** Change institution-wide settings (organisation name, notification email, timezone, digest). */
   SETTINGS_MANAGE: ["ADMINISTRATOR"],
   /** Programme analytics and dashboard metrics. Institutional reporting, not student-facing. */

@@ -10,6 +10,7 @@ import { IconChevronDown, IconMenu, IconPlus, IconSearch } from "@/components/ui
 import { API_BASE } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { quickActionsFor, runQuickAction } from "@/lib/quick-actions";
+import { NotificationBell } from "./notification-bell";
 import { ProfileMenu } from "./profile-menu";
 
 export function Topbar({ onMenuClick, onOpenSearch }: { onMenuClick: () => void; onOpenSearch: () => void }) {
@@ -64,6 +65,7 @@ export function Topbar({ onMenuClick, onOpenSearch }: { onMenuClick: () => void;
       </div>
 
       <div className="ml-auto flex items-center gap-3">
+        {user && <NotificationBell />}
         {actions.length > 0 && (
           <div className="relative" ref={newMenuRef}>
             <Button aria-expanded={newMenuOpen} className="px-3 py-1.5 text-xs" onClick={() => setNewMenuOpen((o) => !o)} variant="primary">
