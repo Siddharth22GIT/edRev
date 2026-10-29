@@ -88,3 +88,20 @@ Dev logins: `student@`, `analyst@`, `editor@`, `guild@`, `coordinator@`, `facult
    ✅ Student self sign-up (login page tab, `/signup-requests`), official academic record (`PUT /academic/:id`), delivery confirmation and on-time record (`POST /opportunities/:id/delivery`), shared tier rules + `TierBadge` colour scale.
 3. ✅ My Messages (`/messages`): students only reply; `MESSAGE_SEND` staff message selected students (private DIRECT threads) or a tier/program (one ANNOUNCEMENT); `MESSAGE_BROADCAST_ALL` (Coordinator, Admin) for all students. Recipients are snapshotted once per announcement; per-reader `ReadState`; student replies to announcements go to one private thread (unique index). Bell + unread badges via `useWorkQueue().unreadMessages` (30s poll).
 4. Extras: skill-based match score, achievement badges, saved opportunities, portfolio links, mentor skill endorsements, dark mode, deadline reminders
+5. ✅ Improvement plan Phase 1 (security, `docs/modules/security.md`) and Phase 2 (bids and allocation, `docs/modules/bids-and-allocation.md`), 30 Oct 2026. The full phased plan is `docs/improvement-plan.md`.
+
+## Next session (planned for 31 Oct 2026)
+
+Start here. Read `docs/improvement-plan.md` (Phase 3 onward) and `running-cloud.md` first. **Restart `npm run dev`** before testing (Next.js was patched and `next.config.ts` changed).
+
+1. **Phase 3: new look (UMS-inspired, our own brand)**, items U1–U11 in the plan:
+   - U1 real fonts via `next/font` (body font + monospace for numbers) · U2 design tokens as CSS variables
+   - U3 collapsible orange icon rail (from `navigationFor(role)`, state in `user.preferences`) · U4 top bar with menus and an identity block (name, registration number, program/year, `TierBadge`)
+   - U5 one-line urgent notice · U6 quick-links row with counts from `useWorkQueue()` · U7 new `TabCard` (orange tab label on the card border)
+   - U8 student dashboard cards (My Training, Messages, Opportunities for you, Earnings, Active Projects, Deadlines, Announcements) · U9 staff dashboard cards
+   - U10 accessibility (readable text on orange, focus rings, status not by colour alone) · U11 finish data quirks (existing untrimmed titles, hide the fake "94% match")
+   - Inspired by UMS, **not a copy**: no LPU/UMS logos or product names. Every card shows real data and has a working action; one failing card must not break the others.
+2. **Phase 4: safeguards + SLA engine.** Ask the user for decisions **D1–D5** first (hour caps, attendance %, parallel projects per tier, extensions, cool-down). Includes storing hours per week (moved from S12).
+3. **Phase 5 polish** and **Phase 6 trust features** after that.
+
+Working rules the user asked for: don't touch modules a change doesn't need; keep existing features working; write/update `docs/modules/<module>.md` (template in the plan) and `docs/edge-cases.md` with every change; run typecheck, `npm test`, `test:mock` and the web build; take screenshots as a student and a staff role; commit when done (no need to ask).
