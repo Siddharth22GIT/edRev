@@ -4,6 +4,8 @@ import type {
   Allocation,
   Bid,
   BlackoutPeriod,
+  ChatMessage,
+  Conversation,
   EarningsEntry,
   HourLog,
   Opportunity,
@@ -346,6 +348,81 @@ tierSuggestionSchema.index({ studentId: 1 }, { unique: true, partialFilterExpres
 export const TierSuggestionModel = mongoose.models.TierSuggestion || mongoose.model<TierSuggestion>("TierSuggestion", tierSuggestionSchema);
 // One account per registration number (only users created through sign-up have one)
 userSchema.index({ "signup.registrationNumber": 1 }, { unique: true, sparse: true });
+
+// ---------------- Messages ----------------
+/** Stored conversation: the public shape plus the recipient snapshot and who sent the latest message. */
+export interface ConversationDocument extends Conversation {
+  recipientStudentIds: string[];
+  lastSenderKey: string;
+  withdrawnBy?: string;
+}
+
+const messagePartySchema = new Schema(
+  { userId: { type: String, required: true }, name: { type: String, required: true }, role: { type: String, required: true } },
+  { _id: false }
+);
+
+const conversationSchema = new Schema<ConversationDocument>(
+  {
+    id: { type: String, required: true, unique: true },
+    kind: { type: String, enum: ["DIRECT", "ANNOUNCEMENT"], required: true },
+    subject: { type: String, required: true },
+    priority: { type: String, enum: ["NORMAL", "IMPORTANT"], default: "NORMAL" },
+    allowReplies: { type: Boolean, default: true },
+    staff: { type: messagePartySchema, required: true },
+    studentId: { type: String },
+    studentName: { type: String },
+    parentAnnouncementId: { type: String },
+    audienceLabel: { type: String },
+    recipientCount: { type: Number, required: true },
+    // Recipients are fixed when the message is sent (students who join later don't receive old announcements)
+    recipientStudentIds: { type: [String], index: true },
+    createdAt: { type: String, required: true },
+    lastMessageAt: { type: String, required: true },
+    lastMessagePreview: { type: String, default: "" },
+    lastSenderKey: { type: String, default: "" },
+    withdrawnAt: { type: String },
+    withdrawnBy: { type: String },
+  },
+  { timestamps: false }
+);
+conversationSchema.index({ "staff.userId": 1, lastMessageAt: -1 });
+// At most one private reply thread per student per announcement
+conversationSchema.index(
+  { parentAnnouncementId: 1, studentId: 1 },
+  { unique: true, partialFilterExpression: { parentAnnouncementId: { $exists: true } } }
+);
+
+const chatMessageSchema = new Schema<ChatMessage>(
+  {
+    id: { type: String, required: true, unique: true },
+    conversationId: { type: String, required: true, index: true },
+    sender: { type: messagePartySchema, required: true },
+    body: { type: String, required: true },
+    createdAt: { type: String, required: true },
+  },
+  { timestamps: false }
+);
+
+/** When a reader (studentId for students, userId for staff) last opened a conversation. */
+export interface ReadStateDocument {
+  conversationId: string;
+  readerKey: string;
+  lastReadAt: string;
+}
+const readStateSchema = new Schema<ReadStateDocument>(
+  {
+    conversationId: { type: String, required: true },
+    readerKey: { type: String, required: true },
+    lastReadAt: { type: String, required: true },
+  },
+  { timestamps: false }
+);
+readStateSchema.index({ conversationId: 1, readerKey: 1 }, { unique: true });
+
+export const ConversationModel = mongoose.models.Conversation || mongoose.model<ConversationDocument>("Conversation", conversationSchema);
+export const ChatMessageModel = mongoose.models.ChatMessage || mongoose.model<ChatMessage>("ChatMessage", chatMessageSchema);
+export const ReadStateModel = mongoose.models.ReadState || mongoose.model<ReadStateDocument>("ReadState", readStateSchema);
 
 export const UserModel = mongoose.models.User || mongoose.model<User>("User", userSchema);
 

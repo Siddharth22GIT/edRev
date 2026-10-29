@@ -8,6 +8,7 @@ import earningsRoutes from "./routes/earnings.routes.js";
 import opportunityRoutes from "./routes/opportunity.routes.js";
 import safeguardRoutes from "./routes/safeguard.routes.js";
 import studentRoutes from "./routes/student.routes.js";
+import messagesRoutes from "./routes/messages.routes.js";
 import signupRequestRoutes from "./routes/signup-request.routes.js";
 import tierSuggestionRoutes from "./routes/tier-suggestion.routes.js";
 
@@ -36,6 +37,7 @@ export function createApp() {
   app.use("/api/students", studentRoutes);
   app.use("/api/tier-suggestions", tierSuggestionRoutes);
   app.use("/api/signup-requests", signupRequestRoutes);
+  app.use("/api/messages", messagesRoutes);
   app.use("/api", earningsRoutes);
   app.use("/api", safeguardRoutes);
   app.use("/api", analyticsRoutes);

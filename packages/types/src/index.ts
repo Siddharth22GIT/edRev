@@ -62,6 +62,37 @@ export type TierSuggestionStatus = "PENDING" | "APPROVED" | "DISMISSED";
 export interface TierSuggestion { id: string; studentId: string; studentName: string; currentTier: Tier; suggestedTier: Tier; reasons: string[]; notes: string[]; status: TierSuggestionStatus; createdAt: string; decidedBy?: string; decidedAt?: string; }
 export interface HealthStatus { status: "ok"; service: string; db: "connected" | "mock"; }
 
+/* ---------------- Messages ---------------- */
+export type ConversationKind = "DIRECT" | "ANNOUNCEMENT";
+export type MessagePriority = "NORMAL" | "IMPORTANT";
+/** Who a new message goes to. Selected students each get a private DIRECT thread; groups get one ANNOUNCEMENT. */
+export interface MessageAudience { type: "STUDENTS" | "ALL_STUDENTS" | "TIER" | "PROGRAM"; studentIds?: string[]; tiers?: Tier[]; programs?: string[]; years?: number[]; }
+export interface MessageParty { userId: string; name: string; role: Role; }
+export interface Conversation {
+  id: string;
+  kind: ConversationKind;
+  subject: string;
+  priority: MessagePriority;
+  allowReplies: boolean;
+  /** The staff member who owns the conversation (sender of the announcement or direct message). */
+  staff: MessageParty;
+  /** DIRECT only: the one student in the thread. */
+  studentId?: string;
+  studentName?: string;
+  /** DIRECT threads started by a student replying privately to an announcement. */
+  parentAnnouncementId?: string;
+  /** ANNOUNCEMENT only, for the sender: a readable description of the audience. Never shown to students. */
+  audienceLabel?: string;
+  recipientCount: number;
+  createdAt: string;
+  lastMessageAt: string;
+  lastMessagePreview: string;
+  withdrawnAt?: string;
+}
+export interface ChatMessage { id: string; conversationId: string; sender: MessageParty; body: string; createdAt: string; }
+export interface InboxItem { conversation: Conversation; unread: boolean; canReply: boolean; isSender: boolean; readCount?: number; }
+export interface MessageDraft { audience: MessageAudience; subject: string; body: string; priority: MessagePriority; allowReplies: boolean; }
+
 export * from "./permissions";
 export * from "./tiers";
 

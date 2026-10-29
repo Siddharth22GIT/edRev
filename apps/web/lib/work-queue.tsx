@@ -17,6 +17,8 @@ interface WorkQueue {
   tierSuggestions: TierSuggestion[];
   /** Student sign-ups waiting for approval (Cell Coordinator, Administrator). */
   signupRequests: SignupRequest[];
+  /** Conversations with something new for the signed-in user (everyone). */
+  unreadMessages: number;
   loading: boolean;
   /** Badge counts keyed by sidebar route. */
   counts: Record<string, number>;
@@ -38,6 +40,8 @@ export function WorkQueueProvider({ children }: { children: ReactNode }) {
   const [reviewProposals, setReviewProposals] = useState<Proposal[]>([]);
   const [tierSuggestions, setTierSuggestions] = useState<TierSuggestion[]>([]);
   const [signupRequests, setSignupRequests] = useState<SignupRequest[]>([]);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [messagesVersion, setMessagesVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   const [version, setVersion] = useState(0);
 
@@ -82,16 +86,48 @@ export function WorkQueueProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, pathname, version]);
 
+  // Unread messages: refreshed on navigation, every 30 seconds while the tab is visible, and on returning to the tab
+  useEffect(() => {
+    if (!role) return;
+    let cancelled = false;
+    apiFetch("/messages/unread-count")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!cancelled && typeof json?.data?.count === "number") setUnreadMessages(json.data.count);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, pathname, version, messagesVersion]);
+
+  useEffect(() => {
+    if (!role) return;
+    const bump = () => {
+      if (document.visibilityState === "visible") setMessagesVersion((v) => v + 1);
+    };
+    const timer = window.setInterval(bump, 30000);
+    document.addEventListener("visibilitychange", bump);
+    window.addEventListener("focus", bump);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", bump);
+      window.removeEventListener("focus", bump);
+    };
+  }, [role]);
+
   const counts = {
     "/earnings": pendingEarnings.length,
     "/opportunities": reviewOpportunities.length,
     "/proposals": reviewProposals.length,
     "/students": tierSuggestions.length + signupRequests.length,
+    "/messages": unreadMessages,
   };
 
   return (
     <WorkQueueContext.Provider
-      value={{ pendingEarnings, reviewOpportunities, reviewProposals, tierSuggestions, signupRequests, loading, counts, refresh: () => setVersion((v) => v + 1) }}
+      value={{ pendingEarnings, reviewOpportunities, reviewProposals, tierSuggestions, signupRequests, unreadMessages, loading, counts, refresh: () => setVersion((v) => v + 1) }}
     >
       {children}
     </WorkQueueContext.Provider>
