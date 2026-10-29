@@ -48,6 +48,16 @@ Dev logins: `student@`, `analyst@`, `editor@`, `guild@`, `coordinator@`, `facult
 - Student-owned data: a student sees only their own records; staff roles with the permission see all. See `docs/access-control.md`.
 - Add an access-control test (401 / 403 / allowed) for every new endpoint in `apps/api/src/tests/`.
 
+## Security (Phase 1, see `docs/modules/security.md`)
+
+- Production (`NODE_ENV=production`) refuses to start without a 32+ character `JWT_SECRET` or without MongoDB, and returns 503 if the DB drops. Demo data mode is dev/test only (`ALLOW_DEMO_MODE=true` to override).
+- Sessions last 1 day; tokens carry `tv` = `user.tokenVersion`. Increasing `tokenVersion` ends every session (password change does this and returns a fresh `token`).
+- Body limits: 100 KB default; register a route-specific parser in `app.ts` **before** the default one for any new upload route.
+- Uploads are validated by their bytes (`utils/uploads.ts`), never by the declared type. Non-PDF proposals always download as attachments.
+- Write routes use `limitPerUser(bucket, limit, windowMs)` after `authenticate` (env `RATE_LIMIT_<BUCKET>`).
+- Error responses never show DB internals (`sanitizeErrorResponses` + `jsonErrorHandler`). New code throws errors with a `statusCode`.
+- The web app sends a Content Security Policy (`apps/web/next.config.ts`); add any new outside origin there.
+
 ## How to change things
 
 - **Additive only.** Add optional fields, new collections, new endpoints and new screens. Do not rename or remove existing fields, response shapes, routes or exports. Existing response bodies are `{ data }`, errors `{ message }`.

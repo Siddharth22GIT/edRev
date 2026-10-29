@@ -7,6 +7,7 @@ import {
   submitEarningService,
   verifyEarningService,
 } from "../services/earnings.service.js";
+import { screenshotProblem } from "../utils/uploads.js";
 
 // Roles that may read earnings across all students (see PERMISSIONS in @edurev/types)
 export const AUTHORIZED_INSTITUTIONAL_ROLES: readonly Role[] = PERMISSIONS.EARNINGS_VIEW_ALL;
@@ -141,6 +142,13 @@ export async function submitEarningHandler(req: Request, res: Response): Promise
       errorResponse(res, "exchangeRate must be a positive number.");
       return;
     }
+  }
+
+  // S10: a screenshot must be a real image file (checked by its bytes), never a link or script URL
+  const imageProblem = screenshotProblem(screenshotUrl);
+  if (imageProblem) {
+    errorResponse(res, imageProblem);
+    return;
   }
 
   try {

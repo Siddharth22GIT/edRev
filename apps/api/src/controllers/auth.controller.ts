@@ -121,8 +121,9 @@ export async function changePasswordHandler(req: Request, res: Response): Promis
   }
 
   try {
-    await changePasswordService(req.user!.id, currentPassword, newPassword);
-    res.json({ message: "Password changed." });
+    // S5: every other session ends; `token` keeps this one signed in
+    const { token } = await changePasswordService(req.user!.id, currentPassword, newPassword);
+    res.json({ message: "Password changed.", token });
   } catch (err: any) {
     errorResponse(res, err.message || "Failed to change password.", err.statusCode || 400);
   }

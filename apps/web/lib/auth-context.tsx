@@ -13,6 +13,8 @@ interface AuthContextType {
   logout: () => void;
   /** Merge fields into the signed-in user (e.g. after saving preferences) and keep the cached copy in sync. */
   updateUser: (changes: Partial<User>) => void;
+  /** Swap in a fresh session token (e.g. after a password change ended every other session). */
+  replaceToken: (token: string) => void;
   getAuthHeaders: () => Record<string, string>;
 }
 
@@ -99,6 +101,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const replaceToken = (next: string) => {
+    setToken(next);
+    localStorage.setItem("revalanche_token", next);
+  };
+
   const getAuthHeaders = (): Record<string, string> => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) {
@@ -108,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, updateUser, getAuthHeaders }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, updateUser, replaceToken, getAuthHeaders }}>
       {children}
     </AuthContext.Provider>
   );

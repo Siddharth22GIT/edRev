@@ -75,7 +75,20 @@ export async function postHourLogHandler(req: Request, res: Response): Promise<v
     }
   }
 
-  res.status(201).json({ data: { ...req.body, studentId }, note: "Hour log received." });
+  // S12: validate instead of echoing whatever was sent. Storing hours needs weekly periods, which arrive with
+  // the safeguards engine (Phase 4, G2); until then the note says plainly that nothing was saved.
+  const hours = Number(req.body?.hours);
+  if (!Number.isFinite(hours) || hours <= 0 || hours > 24) {
+    errorResponse(res, "hours must be a number greater than 0 and at most 24.");
+    return;
+  }
+  const date = typeof req.body?.date === "string" ? req.body.date.slice(0, 10) : undefined;
+  const note = typeof req.body?.note === "string" ? req.body.note.slice(0, 300) : undefined;
+
+  res.status(201).json({
+    data: { studentId, hours, ...(date ? { date } : {}), ...(note ? { note } : {}) },
+    note: "Hour log received but not stored yet: weekly hour tracking arrives with the safeguards engine.",
+  });
 }
 
 export async function getBlackoutPeriodsHandler(_req: Request, res: Response): Promise<void> {

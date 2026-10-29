@@ -10,12 +10,16 @@ EduRev is a monorepo with one frontend, one API, and two shared packages. The AP
 Browser
   → Next.js screen (client component)
   → useApi() in apps/web/lib/api.ts          (attaches the Bearer token, handles 401)
+  → app-wide: helmet headers, error-message cleanup, body size limits,
+              503 guard when production has no DB          (see modules/security.md)
   → Express route
-  → authenticate + requirePermission / requireSelfOrPermission
-  → controller (input + per-student scoping)
+  → authenticate (token + current session) + requirePermission / requireSelfOrPermission
+  → limitPerUser (write routes only)
+  → controller (input + per-student scoping + upload checks)
   → service
   → Mongoose model → MongoDB
-       └─ if MongoDB is unreachable: in-memory data from @edurev/mock-data ("demo data mode")
+       └─ if MongoDB is unreachable: in-memory data from @edurev/mock-data ("demo data mode", dev/test only)
+  → jsonErrorHandler (anything thrown comes back as { message })
 ```
 
 ```text

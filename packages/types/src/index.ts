@@ -38,7 +38,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = { celebrations: true, r
 /** Accounts created before self sign-up have no status and count as ACTIVE. */
 export type AccountStatus = "ACTIVE" | "PENDING_APPROVAL" | "REJECTED";
 export interface SignupDetails { registrationNumber: string; program: string; course: string; year: number; requestedAt: string; attempts: number; decidedBy?: string; decidedAt?: string; rejectionReason?: string; }
-export interface User { id: string; name: string; email: string; passwordHash?: string; role: Role; studentId?: string; createdAt?: string; updatedAt?: string; preferences?: UserPreferences; status?: AccountStatus; signup?: SignupDetails; }
+export interface User { id: string; name: string; email: string; passwordHash?: string; role: Role; studentId?: string; createdAt?: string; updatedAt?: string; preferences?: UserPreferences; status?: AccountStatus; signup?: SignupDetails; /** S5: bumped to end every existing session (never sent to clients). */ tokenVersion?: number; }
 export interface AuthResponse { user: Omit<User, "passwordHash">; token: string; }
 export interface ApiError { message: string; }
 
