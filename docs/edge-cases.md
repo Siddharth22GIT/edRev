@@ -1,7 +1,7 @@
 # Edge cases: how we handle them
 
 A study guide to what can go wrong in REVALANCHE and how the code deals with it.
-Last checked against the code: 30 Oct 2026 (updated after Phase 1, security: see [modules/security.md](modules/security.md)).
+Last checked against the code: 30 Oct 2026, after Phase 1 ([security](modules/security.md)) and Phase 2 ([bids and allocation](modules/bids-and-allocation.md)).
 
 **Status key:** ✅ handled · ⚠️ partly handled · ❌ not handled yet (planned fix given)
 
@@ -34,55 +34,13 @@ Check then write (can race):            Atomic (safe):
 
 ## 2. Bid system: the flow
 
-### Student side
+The full, current flow (student and staff sides, status lifecycles) is in **[modules/bids-and-allocation.md](modules/bids-and-allocation.md) §2**. In short:
 
 ```
-Browse opportunities
-   │  sees only work it can see; "matches your tier" hint
-   ▼
-Open an opportunity ──► form hidden if: already bid · already allocated
-   │
-   ▼
-Fill the bid form
-   amount · estimated time · message · relevant skills · optional PDF (≤ 10 MB)
-   │
-   ▼
-POST /api/opportunities/:id/bids          (needs BID_SUBMIT)
-   │  1. student id taken from token (P1)
-   │  2. required fields present?            no → 400
-   │  3. opportunity exists?                 no → 404
-   │  4. already bid? (check + unique index) yes → 409
-   │  5. save bid as SUBMITTED, bid count +1, opportunity → UNDER_REVIEW
-   ▼
-201 { data: bid }  →  student sees "Bid submitted"
+Student: open opportunity → (closed? tier too low? already bid?) → bid → edit / withdraw while SUBMITTED
+Staff:   review bids → allocate (atomic claim, one winner) → others REJECTED + messaged → reassign if needed
+         → student delivers → staff confirm delivery → on time / late recorded
 ```
-
-### Staff side (Bid Desk)
-
-```
-Open opportunity → see all bids (BID_REVIEW) → read proposal PDF
-   │
-   ▼
-POST /api/opportunities/:id/allocate { studentId }   (needs OPPORTUNITY_ALLOCATE)
-   │  1. run safeguards for that student      blocked → 400 with reasons
-   │  2. opportunity + student exist?         no → 404
-   │  3. bid → ALLOCATED
-   │  4. create (or overwrite!) the Allocation, start SLA clock
-   │  5. opportunity → ALLOCATED
-   ▼
-Work happens → POST /:id/delivery (staff confirm) → on time or late recorded
-```
-
-### Status lifecycles
-
-```
-Opportunity:  OPEN ──first bid──► UNDER_REVIEW ──allocate──► ALLOCATED ──► CLOSED
-Bid:          SUBMITTED ──► SHORTLISTED ──► ALLOCATED
-                   └──────────► REJECTED / WITHDRAWN      (no endpoint sets these yet)
-Allocation:   ALLOCATED ──► COMPLETED   (SLA: ACTIVE → OVERDUE / COMPLETED)
-```
-
----
 
 ## 3. Two students bid at the same time
 
@@ -90,16 +48,16 @@ Allocation:   ALLOCATED ──► COMPLETED   (SLA: ACTIVE → OVERDUE / COMPLET
 
 | ID | What happens | Today | Fix |
 |---|---|---|---|
-| BID-01 | **Bid count loses a number.** Both requests read `numberOfBids = 3`, both write `4`. Should be 5. | ❌ | Use `$inc: { numberOfBids: 1 }` (one atomic call), or count bids instead of storing the number. |
-| BID-02 | **Same bid id.** The id is `bid-${Date.now()}`. Two bids in the same millisecond get the same id, the unique `id` index rejects the second one, and that student wrongly sees "You have already submitted a bid". | ❌ | Use `crypto.randomUUID()` for ids. Only show the "already bid" message when the clash is on `opportunityId + studentId`. |
-| BID-03 | **The same student double-clicks**, or bids from two tabs at once. | ✅ | The button is disabled while sending. The code check plus the **unique index** (P2) mean only one bid is saved and the other gets 409. |
+| BID-01 | **Bid count loses a number** when two bids land at once. | ✅ Phase 2 (E3) | `$inc` in one database update. Test: 5 simultaneous bids → count 5. |
+| BID-02 | **Same bid id** for two bids in the same millisecond. | ✅ Phase 2 (E3) | `bid-<uuid>` ids; "already bid" only for a clash on (opportunity, student). |
+| BID-03 | **The same student double-clicks**, or bids from two tabs at once. | ✅ | Button disabled while sending + unique index: one 201, one 409 (tested in Phase 2). |
 
 **The real "same time" conflict is at allocation**, when two staff allocate the same project:
 
 | ID | What happens | Today | Fix |
 |---|---|---|---|
-| ALLOC-01 | Two staff click "Allocate" for **different students** at the same moment. The unique index on `Allocation.opportunityId` lets only one Allocation be created ✅, but **both bids were already marked ALLOCATED**, and the loser gets a raw database error message. | ⚠️ | Claim the opportunity first, atomically: `updateOne({ id, status: { $in: ["OPEN", "UNDER_REVIEW"] } }, { status: "ALLOCATED", allocatedStudentId })`. If 0 records changed → 409 "Already allocated to another student". Update the bids only after the claim succeeds. |
-| ALLOC-02 | Staff B's page is out of date and allocates an **already allocated** (even **completed**) opportunity. The code **overwrites** the allocation with the new student. | ❌ | Same atomic claim as ALLOC-01. Changing the student on an existing allocation becomes a separate, logged "reassign" action. |
+| ALLOC-01 | Two staff allocate **different students** at the same moment. | ✅ Phase 2 (E1) | Atomic claim (`status in OPEN/UNDER_REVIEW → ALLOCATED` in one update): one wins, the other gets a friendly 409. Bids change only after the claim; the claim is undone if the allocation record can't be written. |
+| ALLOC-02 | An out-of-date page allocates **already allocated or delivered** work. | ✅ Phase 2 (E1, E1b) | 409 "already allocated. Use Reassign". Changing the student is a separate, logged Reassign action (Coordinator/Admin, with a reason). |
 
 ---
 
@@ -107,22 +65,24 @@ Allocation:   ALLOCATED ──► COMPLETED   (SLA: ACTIVE → OVERDUE / COMPLET
 
 | ID | Scenario | Today | Fix |
 |---|---|---|---|
-| BID-04 | Bidding on an opportunity that is **ALLOCATED or CLOSED** (an out-of-date page, or calling the API directly). The bid is saved **and flips the opportunity back to UNDER_REVIEW**. | ❌ | The server accepts bids only when the status is OPEN or UNDER_REVIEW (409 otherwise). Never move the opportunity's status backwards. |
-| BID-05 | Bidding **after the deadline**. | ❌ | 409 "Bidding closed on {date}". |
-| BID-06 | Bidding on work **above the student's tier**. Today it's only caught at allocation. | ⚠️ | Check the tier at bid time (403, with a clear reason). Show "You can bid / blocked by …" before the form. |
-| BID-07 | Safeguards (exam blackout, hour cap) block the student. Today they're only checked at allocation. | ⚠️ | Check at bid time too, as a **warning** ("you'd be blocked from allocation because …"). At allocation it stays a hard block. |
-| BID-08 | **Bad amount:** negative, zero, text, or far above the budget. Only "missing" is checked today. | ⚠️ | Must be a positive number. Above budget → allow, but highlight it to staff. |
+| BID-04 | Bidding on **ALLOCATED or CLOSED** work; a bid flipping ALLOCATED back to UNDER_REVIEW. | ✅ Phase 2 (E2) | 409; a bid only moves OPEN → UNDER_REVIEW. |
+| BID-05 | Bidding **after bidding closes**. | ✅ Phase 2 (E2) | Optional `bidsCloseAt` per opportunity → 409 after it. (Not tied to the client `deadline`, because the seeded demo opportunities have past deadlines.) |
+| BID-06 | Bidding on work **above the student's tier**. | ✅ Phase 2 (E4) | 403 at bid time, naming both tiers. |
+| BID-07 | Safeguards (exam blackout, hour cap) block the student. | ✅ Phase 2 (E4) | Bid accepted with a **warning**; still a hard block at allocation. |
+| BID-08 | **Bad amount:** negative, zero, text; or far above the budget. | ✅ Phase 2 (E4) | 400 for bad values; above budget is accepted with a warning. |
 | BID-09 | **Proposal file** is not a PDF, or is too large. | ✅ Phase 1 (S3) | The server checks the bytes start with `%PDF-` and the file is ≤ 10 MB (400 otherwise). Downloads take their type from the real bytes; non-PDFs never open in the browser. |
-| BID-10 | A student wants to **edit or withdraw** a bid. `WITHDRAWN` exists, but there's no endpoint. | ❌ | `PATCH` (edit) and `POST …/withdraw` while the bid is still SUBMITTED. Withdrawing frees the slot, so a new bid is allowed. |
-| BID-11 | **Losing bidders are never told.** Their bids stay SUBMITTED forever. | ❌ | On allocation, mark the other bids REJECTED and send each student a message ("Not selected this time"). |
+| BID-10 | A student wants to **edit or withdraw** a bid. | ✅ Phase 2 (E5) | `PATCH /bids/mine` while SUBMITTED; `POST /bids/mine/withdraw` while SUBMITTED/SHORTLISTED; bidding again revives the same record. |
+| BID-11 | **Losing bidders are never told.** | ✅ Phase 2 (E5) | On allocation other live bids → REJECTED and each student gets a "Bid update" message (failures logged, never undo the allocation). |
 | BID-12 | A student sees **another student's bid**. | ✅ | Students only get their own bid back; staff with `BID_REVIEW` see all. Proposal downloads are checked the same way (403). |
 | BID-13 | Login expires while the student is filling the form. | ⚠️ | 401 is returned (sessions now last 1 day, S5). The form should keep what was typed and ask the student to log in again. |
-| ALLOC-03 | Allocating to a student who **never bid**. The code checks for a bid but carries on anyway. | ⚠️ | Decide: require a bid (400), or allow it as a logged "direct assignment". |
+| ALLOC-03 | Allocating to a student who **never bid**. | ✅ Phase 2 (D7) | 400; an Administrator may assign directly with a reason (stored as `directAssignmentReason`). |
 | ALLOC-04 | The student becomes **ineligible after bidding** (CGPA dropped, blackout started). | ✅ | Safeguards are re-checked at allocation (400 with reasons). |
-| ALLOC-05 | **SLA deadline already in the past** at allocation. It's copied from the opportunity, which was set when the opportunity was created, so the work is overdue on day one. | ❌ | Start the SLA when the work is allocated: deadline = allocation time + agreed duration. |
+| ALLOC-05 | **SLA deadline already in the past** at allocation. | ✅ Phase 2 (E7) | Agreed deadline = staff's choice (future only) → client due date if ahead → now + 7 days. |
+| ALLOC-06 | The allocation record can't be written after the opportunity was claimed. | ✅ Phase 2 | The claim is undone (status restored), then an error is returned. |
+| E1b | Reassigning delivered work, two reassignments at once, or reassigning without a reason. | ✅ Phase 2 | 409 / 409 (atomic on the current student) / 400. History kept in `reassignments`. |
 | DEL-01 | Delivery confirmed **twice**. | ✅ | 409 "already confirmed". |
 | DEL-02 | Delivery date **before allocation**, or **in the future**. | ✅ | 400. |
-| DEL-03 | "On time" is measured against the opportunity's `deadline`, not the allocation's `slaDeadline`. | ⚠️ | Decide which one counts. It feeds the TIER_4 "90%+ on time" rule. |
+| DEL-03 | What "on time" is measured against. | ✅ Phase 2 (D6) | The later of the allocation's agreed deadline and the client's due date, in the institution's timezone. |
 
 ---
 
@@ -136,16 +96,16 @@ Allocation:   ALLOCATED ──► COMPLETED   (SLA: ACTIVE → OVERDUE / COMPLET
 | AUTH-03 | Two staff approve the same sign-up → the second gets 409 "already approved". | ✅ (status check; make it atomic with P3) |
 | AUTH-04 | Too many failed logins or sign-ups → 429, wait 15 minutes. | ✅ |
 | AUTH-05 | Sign-up while the database is down (demo data mode) → 503. | ✅ |
-| AUTH-06 | `joinedAt` uses the UTC date, so it can show the previous day in India. | ❌ Use the institution's timezone. |
+| AUTH-06 | `joinedAt` used the UTC date (could show the previous day in India). | ✅ Phase 2 (E9): institution timezone from Settings. |
 
 ### Earnings
 | ID | Scenario | Today |
 |---|---|---|
-| EARN-01 | The same earning (platform + date + amount) submitted twice → 409. | ⚠️ Code check only. A fast double-click can create two. Add a unique index or an idempotency key. |
-| EARN-02 | Verifying an already verified or rejected earning → 400. | ⚠️ Should be **409**. Two verifiers at once can both pass the check; use P3. |
+| EARN-01 | The same earning (platform + date + amount) submitted twice, even at the same moment. | ✅ Phase 2 (E6): code check + unique index → 409. |
+| EARN-02 | Deciding an already verified or rejected earning; two verifiers at once. | ✅ Phase 2 (E6): decision only while PENDING, in one update → second gets **409**. |
 | EARN-03 | Rejecting without a reason → 400. Amount or exchange rate ≤ 0 → 400. | ✅ |
 | EARN-04 | A student views another student's earnings → 403. | ✅ |
-| EARN-05 | In demo data mode, `verifyEarning` doesn't check the current status (it can re-verify). | ❌ Add the same checks as the database path. |
+| EARN-05 | Demo data mode re-verifying a decided earning. | ✅ (the service's demo path checks the status; now 409 like MongoDB mode). |
 
 ### Tiers and the academic record
 | ID | Scenario | Today |
@@ -166,20 +126,22 @@ Allocation:   ALLOCATED ──► COMPLETED   (SLA: ACTIVE → OVERDUE / COMPLET
 ### Whole-system cases
 | ID | Scenario | Today / plan |
 |---|---|---|
-| SYS-01 | **The database goes down mid-session.** | Production: ✅ Phase 1 (S1), every route returns 503 and demo logins are impossible. Development: ⚠️ still falls back to demo data; a banner (E11) is planned. |
+| SYS-01 | **The database goes down mid-session.** | Production: ✅ Phase 1 (S1), every route returns 503 and demo logins are impossible. Development: still falls back to demo data, and the top-bar badge (re-checked every minute, E11) says changes won't be saved. |
 | SYS-02 | **Out-of-date page:** someone else changed the record while you had it open. | ⚠️ The server must always re-check (P3/P4) and return 409. The UI then shows the message and refreshes the record. |
 | SYS-03 | **Same action sent twice** (double-click, network retry). | ⚠️ Disable buttons while sending, plus unique indexes or 409s on the server. Floods are now limited per user (S9, 429). |
 | SYS-04 | **Large uploads.** | ✅ Phase 1 (S8, S3, S10): 100 KB by default, 15 MB only on bid and earnings uploads, 1 MB on photos; PDFs and images are checked by their bytes. |
-| SYS-05 | **Timezones.** Date-only deadlines end at 23:59 **UTC** (05:29 the next morning in India). | ⚠️ Use the institution's timezone from Settings. |
+| SYS-05 | **Timezones.** | ✅ Phase 2 (E9): date-only deadlines end at 23:59:59.999 in the institution's timezone (`utils/time.ts`). |
 | SYS-06 | **Error messages are built in many different ways.** `httpError` is copied into 4 services, and others use `err: any`. | ⚠️ Safety net done in Phase 1 (S11): DB internals never reach users, and bad JSON or huge bodies return `{ message }`. The copies remain (left alone on purpose); new code should throw errors with a `statusCode`. |
 | SYS-07 | **Stolen or old login token** (shared computer, password changed elsewhere). | ✅ Phase 1 (S5): 1-day sessions; changing the password ends every other session; inactive accounts get 401. |
 | SYS-08 | **Fake "image" or `javascript:` link** as an earnings screenshot. | ✅ Phase 1 (S10): only real PNG, JPEG, WebP or GIF bytes are accepted. |
 | SYS-09 | **Production started without a real secret**, or without MongoDB. | ✅ Phase 1 (S1, S2): the server refuses to start. |
-| SYS-10 | **Staff without earnings access type `/earnings`.** The sidebar hides the link and the API returns 403 (data is safe), but the page has no `RequirePermission` guard, so it shows an empty page with errors. | ❌ Add the page guard (`EARNINGS_SUBMIT` or `EARNINGS_VIEW_ALL`), like other hidden pages. |
+| SYS-10 | **Staff without earnings access type `/earnings`.** | ✅ Phase 2: page guard (`EARNINGS_SUBMIT` or `EARNINGS_VIEW_ALL`) shows "Not available for your role". |
 
 ---
 
 ## 6. Fix order (suggested)
+
+**Done:** 1–4 and the bid-time checks in 6 (Phase 1 and Phase 2, 30 Oct 2026). Remaining items are listed in [improvement-plan.md](improvement-plan.md).
 
 1. **ALLOC-01 / ALLOC-02**: atomic claim on allocate. The biggest data-safety risk.
 2. **BID-04 / BID-05**: the server refuses bids on closed, allocated or past-deadline work.

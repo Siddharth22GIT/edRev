@@ -23,7 +23,9 @@ Both sides read the same lists, so a button can never appear for a role the API 
 | --- | --- | --- |
 | `OPPORTUNITY_CREATE` | Bid Desk Analyst, Cell Coordinator, Administrator | `POST /opportunities` |
 | `OPPORTUNITY_ALLOCATE` | Bid Desk Analyst, Cell Coordinator, Administrator | `POST /opportunities/:id/allocate` |
-| `BID_SUBMIT` | Student | `POST /opportunities/:id/bids` |
+| `BID_SUBMIT` | Student | `POST /opportunities/:id/bids`, `PATCH /opportunities/:id/bids/mine`, `POST /opportunities/:id/bids/mine/withdraw` |
+| `ALLOCATION_REASSIGN` | Cell Coordinator, Administrator | `POST /opportunities/:id/reassign` |
+| `ALLOCATION_DIRECT_ASSIGN` | Administrator | Allocating to a student who didn't bid (with a reason) |
 | `BID_REVIEW` | All staff | See every bid and proposal document (students see only their own) |
 | `STUDENT_RECORDS_VIEW` | All staff | Any student's profile, readiness, tier, training, safeguards, hours, academic record (students see only their own) |
 | `STUDENT_SUPERVISE` | Guild Lead, Cell Coordinator, Faculty Director, Administrator | Update another student's training; log hours on a student's behalf (students may do both for themselves) |
@@ -59,7 +61,11 @@ Both sides read the same lists, so a button can never appear for a role the API 
 | `POST /auth/signup`, `GET /auth/signup-config` | **Public.** Students only (role is never accepted), exact allowed domains (`lpu.in` by default), one account per email and per registration number, 5 attempts/hour per address, hidden honeypot field. New accounts are `PENDING_APPROVAL`. 503 in demo data mode |
 | `POST /auth/login` | Public. Pending/rejected status is only revealed after the correct password. 10 failed attempts per email+address in 15 minutes → 429 |
 | `PUT /academic/:studentId` | `ACADEMIC_RECORD_MANAGE`. Official CGPA 0–10; sets eligibility from the required CGPA and keeps the profile CGPA in sync |
-| `POST /opportunities/:id/delivery` | `OPPORTUNITY_ALLOCATE`. Confirms delivery once (409 after), records on-time vs the opportunity due date, adds one completed project |
+| `POST /opportunities/:id/bids` | `BID_SUBMIT`; identity from the token. 403 above the student's official tier; 409 when allocated, closed or past `bidsCloseAt`; one bid per student |
+| `PATCH /opportunities/:id/bids/mine`, `POST /opportunities/:id/bids/mine/withdraw` | `BID_SUBMIT`; only the signed-in student's own bid ("mine" is never an id from the request) |
+| `POST /opportunities/:id/allocate` | `OPPORTUNITY_ALLOCATE`. Only to a student with a live bid; `ALLOCATION_DIRECT_ASSIGN` may assign anyone with a reason. One winner (atomic); 409 if already allocated |
+| `POST /opportunities/:id/reassign` | `ALLOCATION_REASSIGN`. Reason required; not after delivery |
+| `POST /opportunities/:id/delivery` | `OPPORTUNITY_ALLOCATE`. Confirms delivery once (409 after), records on-time vs the agreed deadline (never stricter than the client due date), adds one completed project |
 | `GET /students/:id/delivery-record` | The student themself, or staff |
 | `GET /messages`, `GET /messages/unread-count`, `GET /messages/:id`, `POST /messages/:id/read` | Any signed-in user, scoped to their own conversations (students: addressed to them and not withdrawn; staff: ones they own). Others' conversations return 404 |
 | `POST /messages/:id/replies` | Students only where the sender allowed replies; a reply to an announcement goes to one private thread with the sender. Staff reply in conversations they own |

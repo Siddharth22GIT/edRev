@@ -83,21 +83,23 @@ Goal: no one can get in or break data in ways they shouldn't. **Doc:** [`docs/mo
 
 ## Phase 2: Bids and allocation integrity
 
-Goal: bidding and allocation can't produce wrong data, even with two people acting at once. **Doc:** `docs/modules/bids-and-allocation.md`.
+Goal: bidding and allocation can't produce wrong data, even with two people acting at once. **Doc:** [`docs/modules/bids-and-allocation.md`](modules/bids-and-allocation.md).
+
+**Status (30 Oct 2026):** done. Decisions used: D6 (on time = agreed deadline, never stricter than the client's date) and D7 (bidders only; Administrator direct assignment with a reason). Bidding closes at an optional `bidsCloseAt`, not at the client deadline (seeded demo data has past deadlines).
 
 | ☐ | ID | Change | Edge cases handled | Test |
 |---|---|---|---|---|
-| ☐ | E1 (S4, ALLOC-01/02) | **Atomic claim on allocate:** set the opportunity to ALLOCATED only if it's still OPEN or UNDER_REVIEW, all in one update. Bids and the allocation change only after the claim succeeds. | Two staff at once; out-of-date page; already completed work; safeguards fail after the claim (undo the claim) | Two parallel allocate calls → one 200, one 409; completed → 409 |
-| ☐ | E1b | A separate **Reassign** action (Admin or Coordinator) with a reason, logged. | Reassign completed work (blocked); reassign to an ineligible student (blocked) | 403 / 409 / 200 cases |
-| ☐ | E2 (BID-04/05) | Bids accepted only while the opportunity is OPEN or UNDER_REVIEW and before `bidsCloseAt`. A bid never moves the status backwards. | Bid on allocated or closed work; bid one second after closing; timezone of the close time | 409 for each case |
-| ☐ | E3 (BID-01/02) | `$inc` for the bid count; `randomUUID()` for bid ids. A duplicate key error says "already bid" only when it really is the same student. | Two students in the same millisecond; same student, two tabs | 20 parallel bids → count = 20 |
-| ☐ | E4 (BID-06–09) | Checks at bid time: tier (403), safeguards (a **warning** returned with the bid), amount must be positive (above budget is allowed but flagged), PDF checks (S3). | Tier dropped after viewing; amount `"abc"`, `-5`, `0` | Each case |
-| ☐ | E5 (BID-10/11) | Students can **edit or withdraw** while the bid is SUBMITTED. On allocation, other bids become REJECTED and those students get a message. | Withdraw after allocation (409); bid again after withdrawing (allowed); message delivery failing (bid still rejected; retried) | Withdraw → bid again works |
-| ☐ | E6 (EARN-01/02/05) | Earnings: unique key against duplicates; verification only succeeds if the earning is still PENDING; 409 when already decided; demo mode gets the same checks. | Two verifiers at once; double-click submit | Parallel verify → one 200, one 409 |
-| ☐ | E7 (ALLOC-05) | The SLA deadline is set at allocation (from D6), never in the past. | Allocated after the client's due date (staff must pick a new date) | Deadline is after allocation time |
-| ☐ | E9 | Dates use the institution's timezone from Settings (`joinedAt`, end-of-day deadlines). | UTC vs IST around midnight | 23:30 IST counts as the same day |
-| ☐ | SYS-10 | Add a `RequirePermission` guard to the `/earnings` page (found during Phase 1 testing). | Analyst typing the URL | Screenshot as analyst shows the "no access" state |
-| ☐ | E11 | "Demo data mode, changes won't be saved" banner in the web app. | Mode switching while the page is open | Banner shows when `/health` says mock |
+| ☑ | E1 (S4, ALLOC-01/02) | **Atomic claim on allocate:** set the opportunity to ALLOCATED only if it's still OPEN or UNDER_REVIEW, all in one update. Bids and the allocation change only after the claim succeeds. | Two staff at once; out-of-date page; already completed work; safeguards fail after the claim (undo the claim) | Two parallel allocate calls → one 200, one 409; completed → 409 |
+| ☑ | E1b | A separate **Reassign** action (Admin or Coordinator) with a reason, logged. | Reassign completed work (blocked); reassign to an ineligible student (blocked) | 403 / 409 / 200 cases |
+| ☑ | E2 (BID-04/05) | Bids accepted only while the opportunity is OPEN or UNDER_REVIEW and before `bidsCloseAt`. A bid never moves the status backwards. | Bid on allocated or closed work; bid one second after closing; timezone of the close time | 409 for each case |
+| ☑ | E3 (BID-01/02) | `$inc` for the bid count; `randomUUID()` for bid ids. A duplicate key error says "already bid" only when it really is the same student. | Two students in the same millisecond; same student, two tabs | 20 parallel bids → count = 20 |
+| ☑ | E4 (BID-06–09) | Checks at bid time: tier (403), safeguards (a **warning** returned with the bid), amount must be positive (above budget is allowed but flagged), PDF checks (S3). | Tier dropped after viewing; amount `"abc"`, `-5`, `0` | Each case |
+| ☑ | E5 (BID-10/11) | Students can **edit or withdraw** while the bid is SUBMITTED. On allocation, other bids become REJECTED and those students get a message. | Withdraw after allocation (409); bid again after withdrawing (allowed); message delivery failing (bid still rejected; retried) | Withdraw → bid again works |
+| ☑ | E6 (EARN-01/02/05) | Earnings: unique key against duplicates; verification only succeeds if the earning is still PENDING; 409 when already decided; demo mode gets the same checks. | Two verifiers at once; double-click submit | Parallel verify → one 200, one 409 |
+| ☑ | E7 (ALLOC-05) | The SLA deadline is set at allocation (from D6), never in the past. | Allocated after the client's due date (staff must pick a new date) | Deadline is after allocation time |
+| ☑ | E9 | Dates use the institution's timezone from Settings (`joinedAt`, end-of-day deadlines). | UTC vs IST around midnight | 23:30 IST counts as the same day |
+| ☑ | SYS-10 | Add a `RequirePermission` guard to the `/earnings` page (found during Phase 1 testing). | Analyst typing the URL | Screenshot as analyst shows the "no access" state |
+| ☑ | E11 | "Demo data mode, changes won't be saved" banner in the web app. | Mode switching while the page is open | Banner shows when `/health` says mock |
 
 ---
 
@@ -117,7 +119,7 @@ Goal: feels familiar to LPU students and looks cleaner than UMS. Every card show
 | ☐ | U8 | **Student dashboard cards:** My Training, Messages, Opportunities for you, Earnings, Active Projects, Deadlines, Announcements. | **One card failing doesn't break the others**; new student with no data; Tier 4 text |
 | ☐ | U9 | **Staff dashboard cards:** Sign-up requests, Earnings to verify, Bids waiting, My Messages, Announcements (At-risk projects after Phase 4). | Role without a permission sees no card for it |
 | ☐ | U10 | Accessibility: readable text on orange, focus rings, status shown with text or icon as well as colour. | Colour-blind users; keyboard-only use |
-| ☐ | U11 | Fix the data quirks that show up: "Hcl Amplified " (trim names), hide the fake "94% match" until F5. | Existing data with stray spaces |
+| ◐ | U11 | Fix the data quirks that show up: "Hcl Amplified " (trim names), hide the fake "94% match" until F5. **New opportunities are trimmed since Phase 2; existing records and the match score remain.** | Existing data with stray spaces |
 
 **Not copied from UMS:** logos, UMS/LPU product names, text shadows, mixed button styles, cut-off cards.
 

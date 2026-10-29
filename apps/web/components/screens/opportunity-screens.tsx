@@ -44,6 +44,8 @@ export function OpportunitiesScreen() {
   const [category, setCategory] = useState("Product Design");
   const [budget, setBudget] = useState("18000");
   const [deadline, setDeadline] = useState("2026-11-15");
+  // E2: optional last day to bid (empty = open until the work is allocated)
+  const [bidsCloseAt, setBidsCloseAt] = useState("");
   const [requiredTier, setRequiredTier] = useState<"TIER_1" | "TIER_2" | "TIER_3" | "TIER_4">("TIER_1");
   const [deliverables, setDeliverables] = useState("Research, UX Flows, Component Library");
   const [description, setDescription] = useState("");
@@ -129,6 +131,7 @@ export function OpportunitiesScreen() {
           deliverables: deliverablesList.length > 0 ? deliverablesList : ["Research", "Design", "Delivery"],
           description: description || `Client deliverable for ${company} involving ${category}.`,
           requiredTier,
+          ...(bidsCloseAt ? { bidsCloseAt } : {}),
           skills: [category, "Collaboration"],
         }),
       });
@@ -366,6 +369,19 @@ export function OpportunitiesScreen() {
                     <option value="TIER_3">Tier 3 (Advanced)</option>
                     <option value="TIER_4">Tier 4 (Expert Guild)</option>
                   </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#666D7A] mb-1" htmlFor="oppBidsClose">
+                    Bidding closes <span className="font-medium normal-case tracking-normal">(optional, end of that day)</span>
+                  </label>
+                  <input
+                    id="oppBidsClose"
+                    type="date"
+                    className="w-full rounded-xl border border-[#E6E6E6] bg-white p-2.5 text-sm text-[#30343B] outline-none transition focus:border-[#3978B8] focus:ring-2 focus:ring-[#C2DCF2]"
+                    value={bidsCloseAt}
+                    onChange={(e) => setBidsCloseAt(e.target.value)}
+                  />
+                  <p className="mt-1 text-[11px] text-[#666D7A]">Leave empty to accept bids until the work is allocated.</p>
                 </div>
               </div>
 

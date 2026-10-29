@@ -38,7 +38,9 @@ Dev logins: `student@`, `analyst@`, `editor@`, `guild@`, `coordinator@`, `facult
 - Self sign-up creates **STUDENT** accounts only, from allowed domains (`lpu.in`), as `PENDING_APPROVAL`; a Cell Coordinator or Administrator approves (`SIGNUP_REVIEW`). Approval creates the student at TIER_1 with a RESTRICTED academic record until a Faculty Director records the official CGPA. One account per email and per registration number (unique indexes).
 - Official CGPA comes from the academic record (`AcademicSnapshot`). Student-entered CGPA is a claim, not a replacement: the CGPA safeguard depends on the official value.
 - A student's identity always comes from the verified token (`req.user.studentId`), never from the request body.
-- One bid per student per opportunity (unique DB index; 409 on duplicates).
+- One bid per student per opportunity (unique DB index; 409 on duplicates). Bids only while the opportunity is OPEN/UNDER_REVIEW and before `bidsCloseAt`; official tier ≥ required tier (403).
+- Allocation goes to one student via an **atomic claim** (conditional update on the opportunity status). Other live bids become REJECTED and the students are messaged. Changing the student afterwards is **Reassign** (`ALLOCATION_REASSIGN`, reason required). Only an Administrator (`ALLOCATION_DIRECT_ASSIGN`) may allocate to a non-bidder, with a reason. See `docs/modules/bids-and-allocation.md`.
+- Status changes (bids, allocations, earning decisions) use conditional updates (`findOneAndUpdate({ …, status: expected })`), never read-then-save. Dates use the institution timezone (`utils/time.ts`).
 - New earnings start `PENDING`; only verifier roles move them to `VERIFIED` / `REJECTED`.
 
 ## Access control

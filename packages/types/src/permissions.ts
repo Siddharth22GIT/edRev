@@ -23,6 +23,10 @@ export const PERMISSIONS = {
   OPPORTUNITY_CREATE: ["BID_DESK_ANALYST", "CELL_COORDINATOR", "ADMINISTRATOR"],
   /** Allocate an opportunity to a bidding student. */
   OPPORTUNITY_ALLOCATE: ["BID_DESK_ANALYST", "CELL_COORDINATOR", "ADMINISTRATOR"],
+  /** E1b: move allocated (not yet delivered) work to a different student, with a recorded reason. */
+  ALLOCATION_REASSIGN: ["CELL_COORDINATOR", "ADMINISTRATOR"],
+  /** D7: allocate work to a student who didn't bid (with a recorded reason). Everyone else allocates only to bidders. */
+  ALLOCATION_DIRECT_ASSIGN: ["ADMINISTRATOR"],
   /** Submit a bid (always as the authenticated student). */
   BID_SUBMIT: ["STUDENT"],
   /** See every bid on an opportunity and its proposal document. Students only see their own bid. */

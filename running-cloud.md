@@ -7,8 +7,13 @@ Pick up here next session. Project rules and conventions are in `CLAUDE.md`.
 ## State of the repo
 
 - Last commits (30 Oct): Tailwind fix, Messages (Phase 3), security (Phase 1), docs.
-- Everything is committed. Next: Phase 2 (bids and allocation), which needs decisions D1–D8.
-- API tests: 141 total, all passing in both modes (`npm test` and `npm run test:mock --workspace @edurev/api`).
+- Phases 1 and 2 committed. Next: Phase 3 (new look).
+- API tests: 160 total, all passing in both modes (`npm test` and `npm run test:mock --workspace @edurev/api`).
+
+## Phase 2 (bids and allocation): done 30 Oct
+
+See [`docs/modules/bids-and-allocation.md`](docs/modules/bids-and-allocation.md). 160 tests pass in both modes; web build OK; checked in Chrome as a student, an analyst and a coordinator.
+Next: Phase 3 (new look) in `docs/improvement-plan.md`. Phase 4 needs decisions D1–D5 (hour caps, attendance, parallel projects, extensions, cool-down).
 
 ## Phase 1 (security): done and committed 30 Oct (3ba0e49)
 

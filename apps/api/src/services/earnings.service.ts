@@ -88,8 +88,18 @@ export async function submitEarningService(input: CreateEarningInput): Promise<E
   };
 
   if (isDbConnected()) {
-    const created = await EarningsEntryModel.create(newEarning);
-    return stripMongoFields<EarningsEntry>(created.toObject());
+    try {
+      const created = await EarningsEntryModel.create(newEarning);
+      return stripMongoFields<EarningsEntry>(created.toObject());
+    } catch (error: any) {
+      // E6: a second identical submission that raced past the check above hits the unique index
+      if (error?.code === 11000 && error?.keyPattern?.platformName) {
+        const err: any = new Error("Duplicate earning submission detected for this platform, date, and amount.");
+        err.statusCode = 409;
+        throw err;
+      }
+      throw error;
+    }
   }
 
   mockEarnings.unshift(newEarning);
@@ -103,40 +113,19 @@ export async function verifyEarningService(
   rejectionReason?: string
 ): Promise<EarningsEntry> {
   if (isDbConnected()) {
-    const earning = await EarningsEntryModel.findOne({ id });
+    // E6: decide only if the earning is still PENDING, in one database update. Two verifiers acting at
+    // the same moment can't both succeed: the second finds nothing PENDING and gets 409.
+    const decision =
+      status === "REJECTED"
+        ? { $set: { verificationStatus: status, verifiedBy, verifiedAt: new Date().toISOString(), rejectionReason: rejectionReason || "No rejection reason provided" } }
+        : { $set: { verificationStatus: status, verifiedBy, verifiedAt: new Date().toISOString() }, $unset: { rejectionReason: 1 } };
+    const earning = await EarningsEntryModel.findOneAndUpdate({ id, verificationStatus: "PENDING" }, decision, { new: true });
     if (!earning) {
-      const err: any = new Error("Earning record not found.");
-      err.statusCode = 404;
+      const current = await EarningsEntryModel.findOne({ id }).lean<EarningsEntry>();
+      const err: any = new Error(current ? `Earning has already been ${current.verificationStatus.toLowerCase()}.` : "Earning record not found.");
+      err.statusCode = current ? 409 : 404;
       throw err;
     }
-
-    if (earning.verificationStatus === "VERIFIED") {
-      const err: any = new Error("Earning has already been verified.");
-      err.statusCode = 400;
-      throw err;
-    }
-
-    if (earning.verificationStatus === "REJECTED") {
-      const err: any = new Error("Earning has already been rejected.");
-      err.statusCode = 400;
-      throw err;
-    }
-
-    if (earning.verificationStatus !== "PENDING") {
-      const err: any = new Error(`Earning has already been ${earning.verificationStatus.toLowerCase()}.`);
-      err.statusCode = 400;
-      throw err;
-    }
-
-    earning.verificationStatus = status;
-    earning.verifiedBy = verifiedBy;
-    earning.verifiedAt = new Date().toISOString();
-    if (status === "REJECTED") {
-      earning.rejectionReason = rejectionReason || "No rejection reason provided";
-    } else {
-      earning.rejectionReason = undefined;
-    }
-    await earning.save();
 
     if (status === "VERIFIED") {
       const student = await StudentModel.findOne({ id: earning.studentId });
@@ -162,15 +151,10 @@ export async function verifyEarningService(
     throw err;
   }
 
-  if (earning.verificationStatus === "VERIFIED") {
-    const err: any = new Error("Earning has already been verified.");
-    err.statusCode = 400;
-    throw err;
-  }
-
-  if (earning.verificationStatus === "REJECTED") {
-    const err: any = new Error("Earning has already been rejected.");
-    err.statusCode = 400;
+  // E6: an earning is decided once (409 for a second decision, same as MongoDB mode)
+  if (earning.verificationStatus !== "PENDING") {
+    const err: any = new Error(`Earning has already been ${earning.verificationStatus.toLowerCase()}.`);
+    err.statusCode = 409;
     throw err;
   }
 
