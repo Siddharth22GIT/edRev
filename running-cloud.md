@@ -1,5 +1,7 @@
 # Running notes: where we left off (30 Oct 2026)
 
+**Tomorrow (31 Oct):** Phase 3 (new look), then Phase 4 after the user decides D1–D5. Task list: `CLAUDE.md` → "Next session".
+
 Pick up here next session. Project rules and conventions are in `CLAUDE.md`.
 
 **Master to-do:** [`docs/improvement-plan.md`](docs/improvement-plan.md) (phases 0–6, decisions D1–D9). Edge cases: [`docs/edge-cases.md`](docs/edge-cases.md).
