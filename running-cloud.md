@@ -36,7 +36,7 @@ Fixed by the user. The cause was unrelated to the layout, so the planned layout 
 
 - [ ] **Stale tier suggestion for Rohan (stu-202):** a pending TIER 2 → TIER 3 suggestion created under the *old* rules. Under the new rules he doesn't qualify (CGPA 7.80 < 9.0). Dismiss it on the Students page, or let the system withdraw it the next time his record changes.
 - [ ] `joinedAt` for newly approved sign-ups uses the UTC date, so it can show the previous day in IST. Use the institution timezone instead.
-- [ ] Update `README.md` for sign-up, tiers, delivery tracking and messages. It still describes the older build.
+- [x] ~~Update `README.md` for sign-up, tiers, delivery tracking and messages.~~ Rewritten 1 Nov 2026 with Mermaid diagrams.
 
 ### 4. Messages follow-ups (agreed for later)
 
