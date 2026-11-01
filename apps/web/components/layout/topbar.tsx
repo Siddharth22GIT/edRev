@@ -1,67 +1,121 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import type { HealthStatus } from "@edurev/types";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { IconChevronDown, IconMenu, IconPlus, IconSearch } from "@/components/ui/icons";
+import { API_BASE } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { quickActionsFor, runQuickAction } from "@/lib/quick-actions";
+import { NotificationBell } from "./notification-bell";
+import { ProfileMenu } from "./profile-menu";
 
-const roleLabels: Record<string, string> = {
-  STUDENT: "Student",
-  BID_DESK_ANALYST: "Bid Desk Analyst",
-  PROPOSAL_EDITOR: "Proposal Editor",
-  GUILD_LEAD: "Guild Lead / Mentor",
-  CELL_COORDINATOR: "Cell Coordinator",
-  FACULTY_DIRECTOR: "Faculty Director",
-  PLACEMENT_OFFICE: "Placement Office",
-  DEAN: "Dean",
-  ADMINISTRATOR: "Administrator",
-};
+export function Topbar({ onMenuClick, onOpenSearch }: { onMenuClick: () => void; onOpenSearch: () => void }) {
+  const { user } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [demoMode, setDemoMode] = useState(false);
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const newMenuRef = useRef<HTMLDivElement>(null);
+  const actions = quickActionsFor(user?.role);
 
-export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
-  const { user, logout } = useAuth();
+  // Close the "+ New" menu when clicking elsewhere
+  useEffect(() => {
+    if (!newMenuOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!newMenuRef.current?.contains(e.target as Node)) setNewMenuOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [newMenuOpen]);
 
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    : "G";
+  // Surface the API's in-memory fallback instead of letting it go unnoticed. E11: re-checked every minute,
+  // so a database that drops mid-session shows up too.
+  useEffect(() => {
+    const check = () =>
+      fetch(`${API_BASE}/health`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((health: HealthStatus | null) => setDemoMode(health?.db === "mock"))
+        .catch(() => setDemoMode(false));
+    check();
+    const timer = window.setInterval(check, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200 bg-slate-50/90 px-4 backdrop-blur lg:px-8">
-      <Button aria-label="Open navigation" className="lg:hidden" onClick={onMenuClick} variant="ghost">☰</Button>
-      <div className="hidden max-w-md flex-1 lg:block">
-        <label className="relative block">
-          <span className="sr-only">Search workspace</span>
-          <input className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="Search students, opportunities…" type="search" />
-          <span aria-hidden="true" className="absolute left-3 top-2 text-slate-400">⌕</span>
-        </label>
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-[#E6E6E6] bg-white/95 px-4 backdrop-blur lg:px-8 shadow-xs">
+      <button
+        aria-label="Open navigation"
+        className="rounded-lg p-2 text-[#666D7A] hover:bg-[#F7F7F6] lg:hidden"
+        onClick={onMenuClick}
+        type="button"
+      >
+        <IconMenu size={20} />
+      </button>
+
+      {/* Search opens the Ctrl+K command bar */}
+      <div className="hidden max-w-md flex-1 md:block">
+        <button
+          className="flex w-full items-center gap-2.5 rounded-xl border border-[#E6E6E6] bg-[#F7F7F6] py-2 pl-3 pr-2 text-left text-sm text-[#8C93A0] transition hover:border-[#C2DCF2] hover:bg-white"
+          onClick={onOpenSearch}
+          type="button"
+        >
+          <IconSearch size={16} />
+          <span className="flex-1">Search or jump to…</span>
+          <kbd className="rounded-md border border-[#E6E6E6] bg-white px-1.5 py-0.5 text-[10px] font-bold text-[#8C93A0]">Ctrl K</kbd>
+        </button>
       </div>
 
-      <div className="ml-auto flex items-center gap-4">
-        {user ? (
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
-                {initials}
-              </span>
-              <div className="hidden sm:block">
-                <p className="text-sm font-semibold leading-tight text-slate-900">{user.name}</p>
-                <p className="text-xs font-medium text-slate-500">{roleLabels[user.role] || user.role}</p>
+      <div className="ml-auto flex items-center gap-3">
+        {user && <NotificationBell />}
+        {actions.length > 0 && (
+          <div className="relative" ref={newMenuRef}>
+            <Button aria-expanded={newMenuOpen} className="px-3 py-1.5 text-xs" onClick={() => setNewMenuOpen((o) => !o)} variant="primary">
+              <IconPlus size={14} />
+              <span className="hidden sm:inline">New</span>
+              <IconChevronDown size={14} />
+            </Button>
+            {newMenuOpen && (
+              <div className="rise-in absolute right-0 top-full z-40 mt-2 w-64 overflow-hidden rounded-xl border border-[#E6E6E6] bg-white p-1.5 shadow-dropdown" role="menu">
+                {actions.map((action) => (
+                  <button
+                    className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-[#FEF6EE]"
+                    key={action.id}
+                    onClick={() => {
+                      setNewMenuOpen(false);
+                      runQuickAction(action, pathname, router.push);
+                    }}
+                    role="menuitem"
+                    type="button"
+                  >
+                    <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[#FEF6EE] text-[#C27803]">
+                      <IconPlus size={14} />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-bold text-[#30343B]">{action.label}</span>
+                      <span className="block text-xs text-[#666D7A]">{action.hint}</span>
+                    </span>
+                  </button>
+                ))}
               </div>
-            </div>
-            <button
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-              onClick={logout}
-              type="button"
-            >
-              Logout
-            </button>
+            )}
           </div>
+        )}
+        {demoMode && (
+          <span title="MongoDB is not connected. The API is serving in-memory demo data and changes are not saved.">
+            <Badge tone="amber">
+              Demo data mode<span className="hidden xl:inline"> · changes won&apos;t be saved</span>
+            </Badge>
+          </span>
+        )}
+        {user ? (
+          <ProfileMenu />
         ) : (
           <Link
-            className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-500"
+            className="rounded-xl bg-[#F2A65A] px-4 py-2 text-xs font-bold text-[#30343B] shadow-sm transition hover:bg-[#E59443] ring-1 ring-[#FBD7B3]"
             href="/login"
           >
             Sign In

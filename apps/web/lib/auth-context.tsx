@@ -11,6 +11,10 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
   logout: () => void;
+  /** Merge fields into the signed-in user (e.g. after saving preferences) and keep the cached copy in sync. */
+  updateUser: (changes: Partial<User>) => void;
+  /** Swap in a fresh session token (e.g. after a password change ended every other session). */
+  replaceToken: (token: string) => void;
   getAuthHeaders: () => Record<string, string>;
 }
 
@@ -68,7 +72,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new Error(data.message || "Invalid credentials.");
+      // `code` is ACCOUNT_PENDING / ACCOUNT_REJECTED for self-signed-up accounts awaiting a decision
+      const error = new Error(data.message || "Invalid credentials.") as Error & { code?: string };
+      error.code = data.code;
+      throw error;
     }
 
     setToken(data.token);
@@ -85,6 +92,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("revalanche_user");
   };
 
+  const updateUser = (changes: Partial<User>) => {
+    setUser((current) => {
+      if (!current) return current;
+      const next = { ...current, ...changes };
+      localStorage.setItem("revalanche_user", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const replaceToken = (next: string) => {
+    setToken(next);
+    localStorage.setItem("revalanche_token", next);
+  };
+
   const getAuthHeaders = (): Record<string, string> => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) {
@@ -94,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, getAuthHeaders }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, updateUser, replaceToken, getAuthHeaders }}>
       {children}
     </AuthContext.Provider>
   );

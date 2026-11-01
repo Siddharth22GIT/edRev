@@ -7,10 +7,17 @@ import {
 import { isDbConnected } from "../config/db.js";
 import { EarningsEntryModel, PlatformAccountModel, StudentModel } from "../models/index.js";
 
+const DEFAULT_EXCHANGE_RATES: Record<string, number> = {
+  USD: 83.2,
+  EUR: 91.5,
+  GBP: 108.0,
+  INR: 1.0,
+};
+
 export async function getEarningsService(studentId?: string): Promise<EarningsEntry[]> {
   if (isDbConnected()) {
     const query = studentId ? { studentId } : {};
-    const list = await EarningsEntryModel.find(query).lean();
+    const list = await EarningsEntryModel.find(query).sort({ createdAt: -1 }).lean();
     return list.map((item) => stripMongoFields<EarningsEntry>(item));
   }
   return studentId ? mockEarnings.filter((x) => x.studentId === studentId) : [...mockEarnings];
@@ -19,36 +26,83 @@ export async function getEarningsService(studentId?: string): Promise<EarningsEn
 export interface CreateEarningInput {
   studentId: string;
   platformName: string;
+  projectTitle?: string;
   originalAmount: number;
   originalCurrency: string;
-  exchangeRate: number;
-  evidence: string;
+  exchangeRate?: number;
+  earningDate?: string;
+  evidence?: string;
+  screenshotUrl?: string;
 }
 
 export async function submitEarningService(input: CreateEarningInput): Promise<EarningsEntry> {
-  const convertedAmount = Number((input.originalAmount * input.exchangeRate).toFixed(2));
+  const currency = (input.originalCurrency || "USD").toUpperCase();
+  const rate = input.exchangeRate || DEFAULT_EXCHANGE_RATES[currency] || 83.2;
+  const earningDate = input.earningDate || new Date().toISOString().split("T")[0];
+  const convertedAmount = Number((input.originalAmount * rate).toFixed(2));
+
+  // Server-side duplicate checking (studentId + platformName + originalAmount + earningDate)
+  if (isDbConnected()) {
+    const existing = await EarningsEntryModel.findOne({
+      studentId: input.studentId,
+      platformName: input.platformName,
+      originalAmount: input.originalAmount,
+      earningDate,
+    });
+    if (existing) {
+      const err: any = new Error("Duplicate earning submission detected for this platform, date, and amount.");
+      err.statusCode = 409;
+      throw err;
+    }
+  } else {
+    const dup = mockEarnings.find(
+      (x) =>
+        x.studentId === input.studentId &&
+        x.platformName === input.platformName &&
+        x.originalAmount === input.originalAmount &&
+        x.earningDate === earningDate
+    );
+    if (dup) {
+      const err: any = new Error("Duplicate earning submission detected.");
+      err.statusCode = 409;
+      throw err;
+    }
+  }
+
   const newEarning: EarningsEntry = {
-    id: `earn-${Date.now()}`,
+    id: `earn-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     studentId: input.studentId,
     platformName: input.platformName,
+    projectTitle: input.projectTitle || `${input.platformName} Freelance Project`,
     originalAmount: input.originalAmount,
-    originalCurrency: input.originalCurrency,
-    exchangeRate: input.exchangeRate,
+    originalCurrency: currency,
+    exchangeRate: rate,
     convertedAmount,
     convertedCurrency: "INR",
-    earningDate: new Date().toISOString().split("T")[0],
-    verificationStatus: "PENDING",
-    evidence: input.evidence,
+    earningDate,
+    verificationStatus: "PENDING", // MUST always be initial PENDING state
+    evidence: input.evidence || "Proof statement uploaded",
+    screenshotUrl: input.screenshotUrl,
     evidenceStatus: "AVAILABLE",
     createdAt: new Date().toISOString(),
   };
 
   if (isDbConnected()) {
-    const created = await EarningsEntryModel.create(newEarning);
-    return stripMongoFields<EarningsEntry>(created.toObject());
+    try {
+      const created = await EarningsEntryModel.create(newEarning);
+      return stripMongoFields<EarningsEntry>(created.toObject());
+    } catch (error: any) {
+      // E6: a second identical submission that raced past the check above hits the unique index
+      if (error?.code === 11000 && error?.keyPattern?.platformName) {
+        const err: any = new Error("Duplicate earning submission detected for this platform, date, and amount.");
+        err.statusCode = 409;
+        throw err;
+      }
+      throw error;
+    }
   }
 
-  mockEarnings.push(newEarning);
+  mockEarnings.unshift(newEarning);
   return newEarning;
 }
 
@@ -59,40 +113,19 @@ export async function verifyEarningService(
   rejectionReason?: string
 ): Promise<EarningsEntry> {
   if (isDbConnected()) {
-    const earning = await EarningsEntryModel.findOne({ id });
+    // E6: decide only if the earning is still PENDING, in one database update. Two verifiers acting at
+    // the same moment can't both succeed: the second finds nothing PENDING and gets 409.
+    const decision =
+      status === "REJECTED"
+        ? { $set: { verificationStatus: status, verifiedBy, verifiedAt: new Date().toISOString(), rejectionReason: rejectionReason || "No rejection reason provided" } }
+        : { $set: { verificationStatus: status, verifiedBy, verifiedAt: new Date().toISOString() }, $unset: { rejectionReason: 1 } };
+    const earning = await EarningsEntryModel.findOneAndUpdate({ id, verificationStatus: "PENDING" }, decision, { new: true });
     if (!earning) {
-      const err: any = new Error("Earning not found.");
-      err.statusCode = 404;
+      const current = await EarningsEntryModel.findOne({ id }).lean<EarningsEntry>();
+      const err: any = new Error(current ? `Earning has already been ${current.verificationStatus.toLowerCase()}.` : "Earning record not found.");
+      err.statusCode = current ? 409 : 404;
       throw err;
     }
-
-    if (earning.verificationStatus === "VERIFIED") {
-      const err: any = new Error("Earning has already been verified.");
-      err.statusCode = 400;
-      throw err;
-    }
-
-    if (earning.verificationStatus === "REJECTED") {
-      const err: any = new Error("Earning has already been rejected.");
-      err.statusCode = 400;
-      throw err;
-    }
-
-    if (earning.verificationStatus !== "PENDING") {
-      const err: any = new Error(`Earning has already been ${earning.verificationStatus.toLowerCase()}.`);
-      err.statusCode = 400;
-      throw err;
-    }
-
-    earning.verificationStatus = status;
-    earning.verifiedBy = verifiedBy;
-    earning.verifiedAt = new Date().toISOString();
-    if (status === "REJECTED") {
-      earning.rejectionReason = rejectionReason || "No rejection reason provided";
-    } else {
-      earning.rejectionReason = undefined;
-    }
-    await earning.save();
 
     if (status === "VERIFIED") {
       const student = await StudentModel.findOne({ id: earning.studentId });
@@ -118,15 +151,10 @@ export async function verifyEarningService(
     throw err;
   }
 
-  if (earning.verificationStatus === "VERIFIED") {
-    const err: any = new Error("Earning has already been verified.");
-    err.statusCode = 400;
-    throw err;
-  }
-
-  if (earning.verificationStatus === "REJECTED") {
-    const err: any = new Error("Earning has already been rejected.");
-    err.statusCode = 400;
+  // E6: an earning is decided once (409 for a second decision, same as MongoDB mode)
+  if (earning.verificationStatus !== "PENDING") {
+    const err: any = new Error(`Earning has already been ${earning.verificationStatus.toLowerCase()}.`);
+    err.statusCode = 409;
     throw err;
   }
 

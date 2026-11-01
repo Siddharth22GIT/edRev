@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
-import type { Role, User } from "@edurev/types";
-import { verifyJwtToken } from "../services/auth.service.js";
+import { can, PERMISSIONS, type Permission, type Role, type User } from "@edurev/types";
+import { sessionProblem, verifyJwtToken } from "../services/auth.service.js";
 
 // Extend Express Request type to attach user
 declare global {
@@ -11,7 +11,7 @@ declare global {
   }
 }
 
-export function authenticate(req: Request, res: Response, next: NextFunction): void {
+export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     res.status(401).json({ message: "Authentication required. Bearer token missing." });
@@ -19,13 +19,23 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   }
 
   const token = authHeader.split(" ")[1];
+  let decoded: any;
   try {
-    const decoded = verifyJwtToken(token);
-    req.user = decoded;
-    next();
+    decoded = verifyJwtToken(token);
   } catch (err: any) {
     res.status(401).json({ message: err.message || "Invalid or expired authentication token." });
+    return;
   }
+
+  // S5: a correctly signed token is not enough; the session must still be current for that account
+  const problem = await sessionProblem(decoded);
+  if (problem) {
+    res.status(401).json({ message: problem });
+    return;
+  }
+
+  req.user = decoded;
+  next();
 }
 
 export function requireRole(...roles: Role[]) {
@@ -43,5 +53,48 @@ export function requireRole(...roles: Role[]) {
     }
 
     next();
+  };
+}
+
+/** Role guard driven by the shared permission map in @edurev/types. */
+export function requirePermission(permission: Permission) {
+  return requireRole(...PERMISSIONS[permission]);
+}
+
+/** The student record id an authenticated STUDENT acts as, or undefined for other roles. */
+export function ownStudentId(user: Request["user"]): string | undefined {
+  if (!user || user.role !== "STUDENT") return undefined;
+  return user.studentId || user.id;
+}
+
+/**
+ * Allows a student to act on their own record (the `:param` route value) and any role holding
+ * `permission` to act on any record. Everyone else gets 403.
+ */
+export function requireSelfOrPermission(permission: Permission, param = "id") {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      res.status(401).json({ message: "Authentication required." });
+      return;
+    }
+
+    const target = req.params[param];
+    const ownId = ownStudentId(req.user);
+    if (ownId && ownId === target) {
+      next();
+      return;
+    }
+
+    if (can(req.user.role, permission)) {
+      next();
+      return;
+    }
+
+    res.status(403).json({
+      message:
+        req.user.role === "STUDENT"
+          ? "Forbidden: Students can only access their own records."
+          : `Forbidden: Role '${req.user.role}' is not authorized to perform this action.`,
+    });
   };
 }

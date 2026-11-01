@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import type { Role } from "@edurev/types";
+import { PERMISSIONS, type Role } from "@edurev/types";
 import {
   getEarningsService,
   getEarningsSummaryService,
@@ -7,14 +7,10 @@ import {
   submitEarningService,
   verifyEarningService,
 } from "../services/earnings.service.js";
+import { screenshotProblem } from "../utils/uploads.js";
 
-export const AUTHORIZED_INSTITUTIONAL_ROLES: Role[] = [
-  "FACULTY_DIRECTOR",
-  "CELL_COORDINATOR",
-  "ADMINISTRATOR",
-  "DEAN",
-  "PLACEMENT_OFFICE",
-];
+// Roles that may read earnings across all students (see PERMISSIONS in @edurev/types)
+export const AUTHORIZED_INSTITUTIONAL_ROLES: readonly Role[] = PERMISSIONS.EARNINGS_VIEW_ALL;
 
 const errorResponse = (res: Response, message: string, status = 400) =>
   res.status(status).json({ message });
@@ -96,6 +92,8 @@ export async function getEarningsSummaryHandler(req: Request, res: Response): Pr
   }
 }
 
+export const getStudentEarningsSummaryHandler = getEarningsSummaryHandler;
+
 export async function submitEarningHandler(req: Request, res: Response): Promise<void> {
   const user = req.user;
   if (!user) {
@@ -117,10 +115,13 @@ export async function submitEarningHandler(req: Request, res: Response): Promise
 
   const {
     platformName,
+    projectTitle,
     originalAmount,
     originalCurrency = "USD",
-    exchangeRate = 83.2,
+    exchangeRate,
+    earningDate,
     evidence = "Uploaded receipt",
+    screenshotUrl,
   } = req.body;
 
   if (!platformName || originalAmount === undefined || originalAmount === null || originalAmount === "") {
@@ -134,9 +135,19 @@ export async function submitEarningHandler(req: Request, res: Response): Promise
     return;
   }
 
-  const numExchangeRate = Number(exchangeRate);
-  if (isNaN(numExchangeRate) || numExchangeRate <= 0) {
-    errorResponse(res, "exchangeRate must be a positive number.");
+  let numExchangeRate: number | undefined;
+  if (exchangeRate !== undefined && exchangeRate !== null && exchangeRate !== "") {
+    numExchangeRate = Number(exchangeRate);
+    if (isNaN(numExchangeRate) || numExchangeRate <= 0) {
+      errorResponse(res, "exchangeRate must be a positive number.");
+      return;
+    }
+  }
+
+  // S10: a screenshot must be a real image file (checked by its bytes), never a link or script URL
+  const imageProblem = screenshotProblem(screenshotUrl);
+  if (imageProblem) {
+    errorResponse(res, imageProblem);
     return;
   }
 
@@ -144,14 +155,18 @@ export async function submitEarningHandler(req: Request, res: Response): Promise
     const data = await submitEarningService({
       studentId, // derived from authenticated user
       platformName: String(platformName).trim(),
+      projectTitle: projectTitle ? String(projectTitle).trim() : undefined,
       originalAmount: numAmount,
       originalCurrency: String(originalCurrency).trim(),
       exchangeRate: numExchangeRate,
-      evidence: String(evidence).trim(),
+      earningDate: earningDate ? String(earningDate) : undefined,
+      evidence: evidence ? String(evidence).trim() : "Proof of payout submitted",
+      screenshotUrl: screenshotUrl ? String(screenshotUrl) : undefined,
     });
-    res.status(201).json({ data, note: "Earning entry saved." });
+    res.status(201).json({ data, message: "Earnings record submitted and pending institutional verification." });
   } catch (err: any) {
-    errorResponse(res, err.message || "Unable to submit earning.", 400);
+    const statusCode = err.statusCode || 400;
+    errorResponse(res, err.message || "Unable to submit earning record.", statusCode);
   }
 }
 
@@ -184,7 +199,10 @@ export async function verifyEarningHandler(req: Request, res: Response): Promise
       status,
       rejectionReason ? String(rejectionReason).trim() : undefined
     );
-    res.json({ data });
+    res.json({
+      data,
+      message: status === "VERIFIED" ? "Earnings record verified successfully." : "Earnings record marked as REJECTED.",
+    });
   } catch (err: any) {
     const statusCode = err.statusCode || 400;
     errorResponse(res, err.message || "Failed to update earning verification status.", statusCode);

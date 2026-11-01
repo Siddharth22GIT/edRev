@@ -4,6 +4,8 @@ import type {
   Allocation,
   Bid,
   BlackoutPeriod,
+  ChatMessage,
+  Conversation,
   EarningsEntry,
   HourLog,
   Opportunity,
@@ -12,6 +14,7 @@ import type {
   Safeguard,
   SettingsSummary,
   Student,
+  TierSuggestion,
   TrainingModule,
   User,
 } from "@edurev/types";
@@ -37,6 +40,21 @@ const studentSchema = new Schema<Student>(
     projectsCompleted: { type: Number, required: true },
     earnings: { type: Number, required: true },
     mentor: { type: String, required: true },
+    // Set for students who joined through self sign-up (unique when present)
+    registrationNumber: { type: String, unique: true, sparse: true },
+    // Optional self-managed profile fields
+    photoUrl: { type: String },
+    bio: { type: String },
+    phone: { type: String },
+    location: { type: String },
+    // First-login onboarding answers (claimedCgpa is self-reported and never replaces the official CGPA)
+    onboardingCompletedAt: { type: String },
+    onboardingSkippedAt: { type: String },
+    claimedCgpa: { type: Number },
+    interests: [{ type: String }],
+    goals: { type: String },
+    availabilityHours: { type: Number },
+    portfolioLinks: [{ label: { type: String }, url: { type: String }, _id: false }],
   },
   { timestamps: true }
 );
@@ -64,6 +82,8 @@ const opportunitySchema = new Schema<Opportunity>(
     deliverables: [{ type: String }],
     updatedAt: { type: String, required: true },
     allocatedStudentId: { type: String },
+    // E2: optional moment bidding closes
+    bidsCloseAt: { type: String },
   },
   { timestamps: true }
 );
@@ -79,8 +99,12 @@ const bidSchema = new Schema<Bid>(
     message: { type: String, required: true },
     relevantSkills: { type: String, required: true },
     status: { type: String, enum: ["SUBMITTED", "SHORTLISTED", "REJECTED", "ALLOCATED", "WITHDRAWN"], default: "SUBMITTED" },
-
+    proposalPdfUrl: { type: String },
+    proposalPdfName: { type: String },
     createdAt: { type: String, required: true },
+    // E5: student edits and withdrawals
+    editedAt: { type: String },
+    withdrawnAt: { type: String },
   },
   { timestamps: true }
 );
@@ -106,6 +130,22 @@ const allocationSchema = new Schema<AllocationDocument>(
     slaStartAt: { type: String },
     slaDeadline: { type: String },
     slaStatus: { type: String, enum: ["ACTIVE", "AT_RISK", "COMPLETED", "OVERDUE", "CANCELLED"], default: "ACTIVE" },
+    // Delivery confirmation (evidence for the top tier)
+    deliveredAt: { type: String },
+    deliveryConfirmedBy: { type: String },
+    onTime: { type: Boolean },
+    // E1b / D7: reassignment history and direct assignments
+    reassignments: [
+      {
+        _id: false,
+        fromStudentId: { type: String, required: true },
+        toStudentId: { type: String, required: true },
+        by: { type: String, required: true },
+        at: { type: String, required: true },
+        reason: { type: String, required: true },
+      },
+    ],
+    directAssignmentReason: { type: String },
   },
   { timestamps: true }
 );
@@ -116,6 +156,7 @@ const earningsEntrySchema = new Schema<EarningsEntry>(
     id: { type: String, required: true, unique: true },
     studentId: { type: String, required: true, index: true },
     platformName: { type: String, required: true },
+    projectTitle: { type: String },
     originalAmount: { type: Number, required: true },
     originalCurrency: { type: String, required: true },
     exchangeRate: { type: Number, required: true },
@@ -124,6 +165,7 @@ const earningsEntrySchema = new Schema<EarningsEntry>(
     earningDate: { type: String, required: true },
     verificationStatus: { type: String, enum: ["PENDING", "VERIFIED", "REJECTED"], default: "PENDING" },
     evidence: { type: String, required: true },
+    screenshotUrl: { type: String },
     evidenceStatus: { type: String, enum: ["AVAILABLE", "MISSING"], default: "AVAILABLE" },
     createdAt: { type: String, required: true },
     verifiedBy: { type: String },
@@ -132,6 +174,9 @@ const earningsEntrySchema = new Schema<EarningsEntry>(
   },
   { timestamps: true }
 );
+
+// E6: the same earning (student + platform + amount + date) can only be recorded once, even on a double-click
+earningsEntrySchema.index({ studentId: 1, platformName: 1, originalAmount: 1, earningDate: 1 }, { unique: true });
 
 // 6. PlatformAccount Model
 const platformAccountSchema = new Schema<PlatformAccount>(
@@ -185,6 +230,9 @@ const hourLogSchema = new Schema<HourLog>(
     remainingHours: { type: Number, required: true },
     status: { type: String, enum: ["NORMAL", "WARNING", "BLOCKED"], required: true },
     overridden: { type: Boolean, default: false },
+    overrideReason: { type: String },
+    overriddenBy: { type: String },
+    overriddenAt: { type: String },
   },
   { timestamps: true }
 );
@@ -242,6 +290,8 @@ const settingsSchema = new Schema<SettingsDocument>(
     notificationEmail: { type: String, required: true },
     weeklyDigestEnabled: { type: Boolean, required: true },
     timezone: { type: String, required: true },
+    signupEnabled: { type: Boolean },
+    allowedSignupDomains: [{ type: String }],
   },
   { timestamps: true }
 );
@@ -259,6 +309,26 @@ const userSchema = new Schema<User>(
       required: true,
     },
     studentId: { type: String },
+    // S5: part of every login token; increasing it ends all existing sessions. Hidden from normal reads.
+    tokenVersion: { type: Number, select: false },
+    // Self sign-up. Accounts without a status (all pre-existing ones) are treated as ACTIVE.
+    status: { type: String, enum: ["ACTIVE", "PENDING_APPROVAL", "REJECTED"] },
+    signup: {
+      registrationNumber: { type: String },
+      program: { type: String },
+      course: { type: String },
+      year: { type: Number },
+      requestedAt: { type: String },
+      attempts: { type: Number },
+      decidedBy: { type: String },
+      decidedAt: { type: String },
+      rejectionReason: { type: String },
+    },
+    preferences: {
+      celebrations: { type: Boolean },
+      reduceMotion: { type: Boolean },
+      showBadges: { type: Boolean },
+    },
   },
   { timestamps: true }
 );
@@ -276,5 +346,105 @@ export const BlackoutPeriodModel = mongoose.models.BlackoutPeriod || mongoose.mo
 export const ProposalModel = mongoose.models.Proposal || mongoose.model<Proposal>("Proposal", proposalSchema);
 export const SafeguardModel = mongoose.models.Safeguard || mongoose.model<Safeguard>("Safeguard", safeguardSchema);
 export const SettingsModel = mongoose.models.Settings || mongoose.model<SettingsDocument>("Settings", settingsSchema);
+// Tier suggestions: recommendations for an administrator to approve or dismiss
+const tierSuggestionSchema = new Schema<TierSuggestion>(
+  {
+    id: { type: String, required: true, unique: true },
+    studentId: { type: String, required: true, index: true },
+    studentName: { type: String, required: true },
+    currentTier: { type: String, enum: ["TIER_1", "TIER_2", "TIER_3", "TIER_4"], required: true },
+    suggestedTier: { type: String, enum: ["TIER_1", "TIER_2", "TIER_3", "TIER_4"], required: true },
+    reasons: [{ type: String }],
+    notes: [{ type: String }],
+    status: { type: String, enum: ["PENDING", "APPROVED", "DISMISSED"], default: "PENDING", index: true },
+    createdAt: { type: String, required: true },
+    decidedBy: { type: String },
+    decidedAt: { type: String },
+  },
+  { timestamps: false }
+);
+
+// At most one PENDING suggestion per student (decided ones are kept as history)
+tierSuggestionSchema.index({ studentId: 1 }, { unique: true, partialFilterExpression: { status: "PENDING" } });
+
+export const TierSuggestionModel = mongoose.models.TierSuggestion || mongoose.model<TierSuggestion>("TierSuggestion", tierSuggestionSchema);
+// One account per registration number (only users created through sign-up have one)
+userSchema.index({ "signup.registrationNumber": 1 }, { unique: true, sparse: true });
+
+// ---------------- Messages ----------------
+/** Stored conversation: the public shape plus the recipient snapshot and who sent the latest message. */
+export interface ConversationDocument extends Conversation {
+  recipientStudentIds: string[];
+  lastSenderKey: string;
+  withdrawnBy?: string;
+}
+
+const messagePartySchema = new Schema(
+  { userId: { type: String, required: true }, name: { type: String, required: true }, role: { type: String, required: true } },
+  { _id: false }
+);
+
+const conversationSchema = new Schema<ConversationDocument>(
+  {
+    id: { type: String, required: true, unique: true },
+    kind: { type: String, enum: ["DIRECT", "ANNOUNCEMENT"], required: true },
+    subject: { type: String, required: true },
+    priority: { type: String, enum: ["NORMAL", "IMPORTANT"], default: "NORMAL" },
+    allowReplies: { type: Boolean, default: true },
+    staff: { type: messagePartySchema, required: true },
+    studentId: { type: String },
+    studentName: { type: String },
+    parentAnnouncementId: { type: String },
+    audienceLabel: { type: String },
+    recipientCount: { type: Number, required: true },
+    // Recipients are fixed when the message is sent (students who join later don't receive old announcements)
+    recipientStudentIds: { type: [String], index: true },
+    createdAt: { type: String, required: true },
+    lastMessageAt: { type: String, required: true },
+    lastMessagePreview: { type: String, default: "" },
+    lastSenderKey: { type: String, default: "" },
+    withdrawnAt: { type: String },
+    withdrawnBy: { type: String },
+  },
+  { timestamps: false }
+);
+conversationSchema.index({ "staff.userId": 1, lastMessageAt: -1 });
+// At most one private reply thread per student per announcement
+conversationSchema.index(
+  { parentAnnouncementId: 1, studentId: 1 },
+  { unique: true, partialFilterExpression: { parentAnnouncementId: { $exists: true } } }
+);
+
+const chatMessageSchema = new Schema<ChatMessage>(
+  {
+    id: { type: String, required: true, unique: true },
+    conversationId: { type: String, required: true, index: true },
+    sender: { type: messagePartySchema, required: true },
+    body: { type: String, required: true },
+    createdAt: { type: String, required: true },
+  },
+  { timestamps: false }
+);
+
+/** When a reader (studentId for students, userId for staff) last opened a conversation. */
+export interface ReadStateDocument {
+  conversationId: string;
+  readerKey: string;
+  lastReadAt: string;
+}
+const readStateSchema = new Schema<ReadStateDocument>(
+  {
+    conversationId: { type: String, required: true },
+    readerKey: { type: String, required: true },
+    lastReadAt: { type: String, required: true },
+  },
+  { timestamps: false }
+);
+readStateSchema.index({ conversationId: 1, readerKey: 1 }, { unique: true });
+
+export const ConversationModel = mongoose.models.Conversation || mongoose.model<ConversationDocument>("Conversation", conversationSchema);
+export const ChatMessageModel = mongoose.models.ChatMessage || mongoose.model<ChatMessage>("ChatMessage", chatMessageSchema);
+export const ReadStateModel = mongoose.models.ReadState || mongoose.model<ReadStateDocument>("ReadState", readStateSchema);
+
 export const UserModel = mongoose.models.User || mongoose.model<User>("User", userSchema);
 
