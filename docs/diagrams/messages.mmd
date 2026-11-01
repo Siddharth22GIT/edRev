@@ -1,8 +1,0 @@
-flowchart LR
-    A["Staff<br/>MESSAGE_SEND"] --> B{"Audience"}
-    B -- "selected students" --> C["Private DIRECT<br/>thread each"]
-    B -- "tier or program" --> D["One<br/>ANNOUNCEMENT"]
-    B -- "all students<br/>(Coordinator, Admin)" --> D
-    C --> E["Per-reader unread<br/>count and bell"]
-    D --> E
-    E --> F["Student replies<br/>in a private thread"]
