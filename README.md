@@ -1,61 +1,145 @@
+<div align="center">
+
+<img src="apps/web/app/icon.svg" alt="REVALANCHE logo" width="72" />
+
 # EduRev · REVALANCHE
 
-A college operations workspace that takes students from training to real, paid client work without putting their studies at risk.
+**From training to real client work, without putting studies at risk.**
 
-Students train, bid on curated client projects and get allocated work (subject to academic safeguards). They record their freelance earnings, and staff verify them. The institution sees aggregate reporting only. It takes **no commission** and **never stores platform passwords**.
+![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![Express](https://img.shields.io/badge/Express-5-000000?logo=express)
+![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose-47A248?logo=mongodb&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+
+[Features](#features) · [Architecture](#architecture) · [Quick start](#quick-start) · [Scripts](#scripts) · [Docs](#documentation)
+
+</div>
+
+---
+
+## About
+
+EduRev is a role-based college workspace. Students train, bid on curated client projects and get allocated work, subject to academic safeguards. They record their freelance earnings, and staff verify them. The institution sees aggregate reporting only.
+
+> The institution takes **no commission**, there is **no payment gateway**, and platform passwords or API keys are **never stored**.
+
+## Features
+
+| | |
+| --- | --- |
+| 🎓 **Onboarding** | Student self sign-up with a college email, coordinator approval, first-login wizard |
+| 📚 **Training and tiers** | Four tiers (Starter → Elite). The system suggests a tier; only an Administrator approves it |
+| 💼 **Bid desk** | One bid per student per project, PDF proposals, edit or withdraw while bidding is open |
+| ⚖️ **Fair allocation** | Atomic claim, so exactly one student gets each project; reassignment needs a reason |
+| 🛡️ **Academic safeguards** | Checks official CGPA, weekly hours, exam blackouts and compliance before allocating |
+| 💰 **Earnings** | Proof screenshot, original currency kept, verified by faculty or the Dean |
+| ✉️ **Messages** | Direct messages and announcements to a tier, a program or all students |
+| 📊 **Analytics** | Aggregate program reporting, with no individual leaderboard |
 
 ## Architecture
 
-![Architecture](docs/diagrams/architecture.png)
+<p align="center">
+  <img src="docs/diagrams/architecture.png" alt="Architecture diagram" width="760" />
+</p>
 
-A TypeScript monorepo (npm workspaces):
+TypeScript monorepo with npm workspaces. Role permissions and tier rules are defined **once** in `@edurev/types` and used by both the web app and the API, so the UI never shows an action the server would refuse.
 
-| Workspace | What it is |
+<details>
+<summary><b>Student journey</b></summary>
+<br/>
+<p align="center">
+  <img src="docs/diagrams/student-journey.png" alt="Student journey diagram" width="860" />
+</p>
+</details>
+
+<details>
+<summary><b>Allocation flow</b></summary>
+<br/>
+<p align="center">
+  <img src="docs/diagrams/allocation.png" alt="Allocation flow diagram" width="760" />
+</p>
+</details>
+
+## Tech stack
+
+| Layer | Tools |
 | --- | --- |
-| `apps/web` | Next.js 15 App Router, React 19, Tailwind 3 |
-| `apps/api` | Express 5 + Mongoose: `routes → middleware → controllers → services → models` |
-| `packages/types` | Shared types, the role permission map (`PERMISSIONS`) and tier rules |
-| `packages/mock-data` | Seed data, also used as "demo data mode" when MongoDB is down (dev only) |
+| Frontend | Next.js 15 (App Router), React 19, Tailwind CSS 3 |
+| Backend | Express 5, Mongoose, JWT, helmet |
+| Database | MongoDB (falls back to in-memory demo data in development) |
+| Testing | `node:test`, run against MongoDB and in demo data mode |
 
-Permissions and tier rules are defined once in `@edurev/types`, so the UI and the API always agree.
+## Quick start
 
-## Student journey
-
-![Student journey](docs/diagrams/student-journey.png)
-
-- **Tiers:** Starter → Skilled → Advanced → Elite. The system only *suggests* a tier; only an Administrator changes it.
-- **Safeguards:** tier, official CGPA, weekly hours, exam blackout periods and compliance are checked before any allocation.
-
-## Allocation
-
-![Allocation flow](docs/diagrams/allocation.png)
-
-Each project goes to exactly one student. An atomic database claim means that if two staff members click Allocate at the same time, one wins and the other gets `409`.
-
-## Getting started
-
-Requires Node.js 20.9+ and npm 10+. MongoDB at `127.0.0.1:27017` is optional; without it the API runs in demo data mode.
+**Prerequisites:** Node.js 20.9+, npm 10+. MongoDB at `127.0.0.1:27017` is optional; without it the API runs in demo data mode.
 
 ```bash
+git clone https://github.com/ItsShivam05/edRev.git
+cd edRev
 npm install
-npm run dev        # web on http://localhost:3000, API on http://localhost:4000
+cp .env.example .env   # defaults work for local development
+npm run dev            # web → http://localhost:3000 · API → http://localhost:4000
 ```
 
-Sign in with `student@revalanche.local` (or `analyst@`, `coordinator@`, `admin@` …) and password `Password123!`.
+### Demo accounts
 
-## Checks
+Password for all accounts: `Password123!`
+
+| Role | Email |
+| --- | --- |
+| Student | `student@revalanche.local` |
+| Bid Desk Analyst | `analyst@revalanche.local` |
+| Cell Coordinator | `coordinator@revalanche.local` |
+| Faculty Director | `faculty@revalanche.local` |
+| Administrator | `admin@revalanche.local` |
+
+Also available: `editor@`, `guild@`, `placement@`, `dean@`.
+
+## Scripts
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Start web and API together |
+| `npm run typecheck` | Type-check all workspaces |
+| `npm test` | API tests against MongoDB |
+| `npm run test:mock --workspace @edurev/api` | Same tests in demo data mode |
+| `npm run build` | Production build of web and API |
+
+## Project structure
+
+```text
+edRev/
+├── apps/
+│   ├── api/          Express API: routes → middleware → controllers → services → models
+│   └── web/          Next.js app: pages in app/(workspace)/, screens in components/
+├── packages/
+│   ├── types/        shared types, PERMISSIONS, TIER_RULES
+│   └── mock-data/    seed and demo data
+└── docs/             architecture, access control, data model, module notes
+```
+
+## Documentation
+
+| Document | Contents |
+| --- | --- |
+| [Architecture](docs/architecture.md) | Request flow and workspace responsibilities |
+| [Access control](docs/access-control.md) | Roles, permissions and endpoint rules |
+| [Data model](docs/data-model.md) | Collections, fields and unique indexes |
+| [Bids and allocation](docs/modules/bids-and-allocation.md) | Bidding and allocation rules |
+| [Security](docs/modules/security.md) | Sessions, uploads, rate limits, error handling |
+| [Edge cases](docs/edge-cases.md) | Known edge cases and how each is handled |
+| [Improvement plan](docs/improvement-plan.md) | Roadmap and open decisions |
+
+## Contributing
+
+1. Create a branch from `main`.
+2. Keep changes additive: don't rename or remove existing fields, routes or exports.
+3. Add an access-control test (401 / 403 / allowed) for every new endpoint.
+4. Before opening a PR, run `npm run typecheck`, `npm test` and `npm run test:mock --workspace @edurev/api`.
+
+Diagram sources live in [`docs/diagrams/`](docs/diagrams/). After editing a `.mmd` file, regenerate its image:
 
 ```bash
-npm run typecheck                          # all workspaces
-npm test                                   # API tests against MongoDB
-npm run test:mock --workspace @edurev/api  # same tests in demo data mode
-npm run build
+npx @mermaid-js/mermaid-cli -i docs/diagrams/<name>.mmd -o docs/diagrams/<name>.png -s 2 -b white
 ```
-
-## More documentation
-
-- [Architecture](docs/architecture.md) · [Access control](docs/access-control.md) · [Data model](docs/data-model.md)
-- [Bids and allocation](docs/modules/bids-and-allocation.md) · [Security](docs/modules/security.md) · [Edge cases](docs/edge-cases.md)
-- [Improvement plan](docs/improvement-plan.md)
-
-Diagram sources are in [docs/diagrams/](docs/diagrams/) (`*.mmd`). To regenerate a PNG: `npx @mermaid-js/mermaid-cli -i docs/diagrams/<name>.mmd -o docs/diagrams/<name>.png -s 2 -b white`.
