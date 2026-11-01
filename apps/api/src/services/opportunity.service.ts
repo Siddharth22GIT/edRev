@@ -1,4 +1,4 @@
-import type { Allocation, Bid, Opportunity, SlaStatus } from "@edurev/types";
+﻿import type { Allocation, Bid, Opportunity, SlaStatus } from "@edurev/types";
 import {
   allocate as mockAllocate,
   bids as mockBids,
@@ -134,12 +134,17 @@ export async function allocateOpportunityService(opportunityId: string, studentI
       throw err;
     }
 
-    // Verify bid exists
+    // Require a valid submitted bid before allocating
     const bid = await BidModel.findOne({ opportunityId, studentId });
-    if (bid) {
-      bid.status = "ALLOCATED";
-      await bid.save();
+    if (!bid) {
+      const err: any = new Error(
+        "No bid found from this student for the opportunity. A valid bid is required before allocation."
+      );
+      err.statusCode = 400;
+      throw err;
     }
+    bid.status = "ALLOCATED";
+    await bid.save();
 
     const now = new Date();
     const slaDeadlineDate = opp.slaDeadline ? new Date(opp.slaDeadline) : new Date(now.getTime() + 72 * 3600 * 1000);

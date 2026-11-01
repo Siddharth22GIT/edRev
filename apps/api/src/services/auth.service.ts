@@ -1,12 +1,20 @@
-import bcrypt from "bcryptjs";
+﻿import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { AuthResponse, User } from "@edurev/types";
 import { isDbConnected } from "../config/db.js";
 import { UserModel } from "../models/index.js";
 import { DEV_DEFAULT_PASSWORD, seedUsersList } from "../utils/seed.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "revalanche_dev_jwt_secret_key_change_in_production";
+const DEV_JWT_SECRET = "revalanche_dev_jwt_secret_key_change_in_production";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+
+// In production the JWT secret MUST be explicitly provided — never ship with the dev placeholder
+if (process.env.NODE_ENV === "production" && (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEV_JWT_SECRET)) {
+  console.error("❌ FATAL: JWT_SECRET is not set or is using the insecure development default in production. Set a strong, unique JWT_SECRET environment variable.");
+  process.exit(1);
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || DEV_JWT_SECRET;
 
 // Pre-calculate hash for mock/fallback mode
 let mockHashCache: string | null = null;

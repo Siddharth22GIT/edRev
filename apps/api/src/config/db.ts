@@ -1,16 +1,26 @@
-import mongoose from "mongoose";
+﻿import mongoose from "mongoose";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 let isConnected = false;
 
+const DEV_FALLBACK_URI = "mongodb://127.0.0.1:27017/edurev";
+
 export async function connectDB(): Promise<boolean> {
-  const uri = process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27017/edurev";
-  
-  if (!uri) {
-    console.warn("⚠️ MONGODB_URI is not set. Database connection skipped.");
-    return false;
+  const explicitUri = process.env.MONGODB_URI;
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (!explicitUri && isProduction) {
+    // MONGODB_URI must be set explicitly in production — never silently use a local fallback
+    console.error("❌ FATAL: MONGODB_URI environment variable is not set in production. Refusing to start without a configured database.");
+    process.exit(1);
+  }
+
+  const uri = explicitUri ?? DEV_FALLBACK_URI;
+
+  if (!explicitUri) {
+    console.warn("⚠️ MONGODB_URI is not set. Using local development fallback (" + DEV_FALLBACK_URI + "). Set MONGODB_URI for production.");
   }
 
   try {
