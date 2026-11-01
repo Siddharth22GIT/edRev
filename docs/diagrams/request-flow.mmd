@@ -1,0 +1,8 @@
+flowchart LR
+    A(["Browser"]) --> B["useApi()<br/>Bearer token"]
+    B --> C["authenticate<br/><i>401</i>"]
+    C --> D["requirePermission<br/><i>403</i>"]
+    D --> E["limitPerUser<br/><i>429</i>"]
+    E --> F["Controller<br/>validate input"]
+    F --> G["Service<br/>business rules"]
+    G --> H[("MongoDB<br/>or demo data")]
