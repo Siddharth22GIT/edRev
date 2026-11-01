@@ -1,0 +1,8 @@
+flowchart LR
+    A["Record changes<br/>CGPA, training,<br/>skills, delivery"] --> B["suggestTier()"]
+    B --> C{"Qualifies for<br/>a higher tier?"}
+    C -- no --> D["Withdraw stale<br/>suggestion"]
+    C -- yes --> E["Pending<br/>suggestion"]
+    E --> F{"Administrator"}
+    F -- approve --> G["Official tier<br/>updated"]
+    F -- dismiss --> H["Tier<br/>unchanged"]

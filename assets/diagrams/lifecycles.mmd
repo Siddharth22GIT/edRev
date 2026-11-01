@@ -1,0 +1,19 @@
+stateDiagram-v2
+    direction LR
+    state "Opportunity" as O {
+        direction LR
+        [*] --> OPEN
+        OPEN --> UNDER_REVIEW: first bid
+        UNDER_REVIEW --> OPEN: last bid withdrawn
+        UNDER_REVIEW --> ALLOCATED: allocate
+        OPEN --> CLOSED
+    }
+    state "Bid" as B {
+        direction LR
+        [*] --> SUBMITTED
+        SUBMITTED --> ALLOCATED_B: chosen
+        SUBMITTED --> REJECTED: other chosen
+        SUBMITTED --> WITHDRAWN: withdraw
+        WITHDRAWN --> SUBMITTED: bid again
+    }
+    state "ALLOCATED" as ALLOCATED_B

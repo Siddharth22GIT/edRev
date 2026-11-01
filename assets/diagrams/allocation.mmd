@@ -1,0 +1,7 @@
+flowchart LR
+    A["Staff clicks<br/>Allocate"] --> B{"Safeguards<br/>pass?"}
+    B -- no --> X["400<br/>blocked, reasons shown"]
+    B -- yes --> C{"Atomic claim<br/>succeeds?"}
+    C -- no --> Y["409<br/>already allocated"]
+    C -- yes --> D["Allocation created<br/>winner ALLOCATED<br/>other bids REJECTED"]
+    D --> E["Other bidders<br/>messaged"]

@@ -1,0 +1,9 @@
+flowchart LR
+    A["Student signs up<br/>name@lpu.in"] --> B{"Allowed domain,<br/>new email and reg. no.?"}
+    B -- no --> X["Refused"]
+    B -- yes --> C["PENDING_APPROVAL"]
+    C --> D{"Coordinator<br/>or Admin"}
+    D -- reject --> R["Rejected"]
+    D -- approve --> E["Student at TIER_1<br/>academic record RESTRICTED"]
+    E --> F["Faculty records<br/>official CGPA"]
+    F --> G["Eligible for<br/>tier suggestions"]

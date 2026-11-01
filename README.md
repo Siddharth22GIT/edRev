@@ -59,7 +59,7 @@ EduRev is a role-based college workspace. Students train, bid on curated client 
 ## Architecture
 
 <p align="center">
-  <img src="docs/diagrams/architecture.png" alt="Architecture: web app, API, MongoDB and shared packages" width="100%" />
+  <img src="assets/diagrams/architecture.png" alt="Architecture: web app, API, MongoDB and shared packages" width="100%" />
 </p>
 
 A TypeScript monorepo with npm workspaces. Role permissions and tier rules are defined **once** in `@edurev/types` and used by both the web app and the API, so the UI never shows an action the server would refuse.
@@ -67,7 +67,7 @@ A TypeScript monorepo with npm workspaces. Role permissions and tier rules are d
 ### Request flow
 
 <p align="center">
-  <img src="docs/diagrams/request-flow.png" alt="Request flow through the API middleware" width="100%" />
+  <img src="assets/diagrams/request-flow.png" alt="Request flow through the API middleware" width="100%" />
 </p>
 
 Every route except login and health checks goes through `authenticate`. Each service works against MongoDB, or against in-memory demo data when the database is down (development only).
@@ -77,13 +77,13 @@ Every route except login and health checks goes through `authenticate`. Each ser
 ### Student journey
 
 <p align="center">
-  <img src="docs/diagrams/student-journey.png" alt="Student journey from sign-up to verified earnings" width="100%" />
+  <img src="assets/diagrams/student-journey.png" alt="Student journey from sign-up to verified earnings" width="100%" />
 </p>
 
 ### Sign-up and approval
 
 <p align="center">
-  <img src="docs/diagrams/signup.png" alt="Sign-up and approval flow" width="100%" />
+  <img src="assets/diagrams/signup.png" alt="Sign-up and approval flow" width="100%" />
 </p>
 
 A CGPA typed in by the student is only a *claim*. Safeguards and tier rules always use the **official** CGPA recorded by a Faculty Director.
@@ -91,11 +91,11 @@ A CGPA typed in by the student is only a *claim*. Safeguards and tier rules alwa
 ### Tiers
 
 <p align="center">
-  <img src="docs/diagrams/tiers.png" alt="Tier ladder from Starter to Elite" width="100%" />
+  <img src="assets/diagrams/tiers.png" alt="Tier ladder from Starter to Elite" width="100%" />
 </p>
 
 <p align="center">
-  <img src="docs/diagrams/tier-suggestion.png" alt="Tier suggestion and approval flow" width="100%" />
+  <img src="assets/diagrams/tier-suggestion.png" alt="Tier suggestion and approval flow" width="100%" />
 </p>
 
 Training, onboarding and automation can only **suggest** a tier. Only an Administrator changes an official tier. Rules live in [`packages/types/src/tiers.ts`](packages/types/src/tiers.ts).
@@ -103,13 +103,13 @@ Training, onboarding and automation can only **suggest** a tier. Only an Adminis
 ### Academic safeguards
 
 <p align="center">
-  <img src="docs/diagrams/safeguards.png" alt="Academic safeguard checks before allocation" width="100%" />
+  <img src="assets/diagrams/safeguards.png" alt="Academic safeguard checks before allocation" width="100%" />
 </p>
 
 ### Allocation
 
 <p align="center">
-  <img src="docs/diagrams/allocation.png" alt="Allocation flow with atomic claim" width="100%" />
+  <img src="assets/diagrams/allocation.png" alt="Allocation flow with atomic claim" width="100%" />
 </p>
 
 If two staff members click **Allocate** at the same moment, only one database update can match the open status. The other gets `409`, so two students can never get the same project.
@@ -117,19 +117,19 @@ If two staff members click **Allocate** at the same moment, only one database up
 ### Earnings
 
 <p align="center">
-  <img src="docs/diagrams/earnings.png" alt="Earnings recording and verification" width="100%" />
+  <img src="assets/diagrams/earnings.png" alt="Earnings recording and verification" width="100%" />
 </p>
 
 ### Messages
 
 <p align="center">
-  <img src="docs/diagrams/messages.png" alt="Messaging audiences and replies" width="100%" />
+  <img src="assets/diagrams/messages.png" alt="Messaging audiences and replies" width="100%" />
 </p>
 
 ### Status lifecycles
 
 <p align="center">
-  <img src="docs/diagrams/lifecycles.png" alt="Opportunity and bid status lifecycles" width="720" />
+  <img src="assets/diagrams/lifecycles.png" alt="Opportunity and bid status lifecycles" width="720" />
 </p>
 
 Every status change is a conditional update (`findOneAndUpdate({ …, status: expected })`), never "read, then save".
@@ -137,14 +137,12 @@ Every status change is a conditional update (`findOneAndUpdate({ …, status: ex
 ## Data model
 
 <p align="center">
-  <img src="docs/diagrams/data-model.png" alt="Entity relationship diagram" width="100%" />
+  <img src="assets/diagrams/data-model.png" alt="Entity relationship diagram" width="100%" />
 </p>
 
 - One bid per student per opportunity (unique index), one allocation per opportunity.
 - No duplicate earnings claims; unique email and registration number per account.
 - `PlatformAccount` stores **identifiers only**, never passwords or tokens.
-
-Field-level details: [docs/data-model.md](docs/data-model.md).
 
 ## Roles
 
@@ -160,7 +158,7 @@ Field-level details: [docs/data-model.md](docs/data-model.md).
 | Dean | Verify earnings, view reporting, message students |
 | Administrator | Everything, plus official tier changes and institution settings |
 
-Permissions are defined in [`packages/types/src/permissions.ts`](packages/types/src/permissions.ts). Full table: [docs/access-control.md](docs/access-control.md).
+Permissions are defined in [`packages/types/src/permissions.ts`](packages/types/src/permissions.ts).
 
 ## Tech stack
 
@@ -230,28 +228,16 @@ edRev/
 ├── packages/
 │   ├── types/        shared types, PERMISSIONS, TIER_RULES
 │   └── mock-data/    seed and demo data
-└── docs/             architecture, access control, data model, module notes, diagrams
+└── assets/diagrams/  README diagrams (.png) and their Mermaid sources (.mmd)
 ```
 
 ## Roadmap
 
 <p align="center">
-  <img src="docs/diagrams/roadmap.png" alt="Roadmap phases 1 to 6" width="100%" />
+  <img src="assets/diagrams/roadmap.png" alt="Roadmap phases 1 to 6" width="100%" />
 </p>
 
-Green: done · Blue: next · Orange: planned. Details in [docs/improvement-plan.md](docs/improvement-plan.md).
-
-## Documentation
-
-| Document | Contents |
-| --- | --- |
-| [Architecture](docs/architecture.md) | Request flow and workspace responsibilities |
-| [Access control](docs/access-control.md) | Roles, permissions and endpoint rules |
-| [Data model](docs/data-model.md) | Collections, fields and unique indexes |
-| [Bids and allocation](docs/modules/bids-and-allocation.md) | Bidding and allocation rules |
-| [Security](docs/modules/security.md) | Sessions, uploads, rate limits, error handling |
-| [Edge cases](docs/edge-cases.md) | Known edge cases and how each is handled |
-| [Improvement plan](docs/improvement-plan.md) | Roadmap and open decisions |
+Green: done · Blue: next · Orange: planned.
 
 ## Contributing
 
@@ -262,8 +248,8 @@ Green: done · Blue: next · Orange: planned. Details in [docs/improvement-plan.
 
 ### Editing diagrams
 
-Diagram sources are the `.mmd` files in [`docs/diagrams/`](docs/diagrams/). After editing one, regenerate its image:
+Diagram sources are the `.mmd` files in [`assets/diagrams/`](assets/diagrams/). After editing one, regenerate its image:
 
 ```bash
-npx @mermaid-js/mermaid-cli -i docs/diagrams/<name>.mmd -o docs/diagrams/<name>.png -s 2 -b white
+npx @mermaid-js/mermaid-cli -i assets/diagrams/<name>.mmd -o assets/diagrams/<name>.png -s 2 -b white
 ```
