@@ -1,0 +1,13 @@
+flowchart TB
+    WEB["<b>Web app</b> · apps/web<br/>Next.js 15, React 19, Tailwind"]
+    API["<b>API</b> · apps/api<br/>Express 5, Mongoose, JWT"]
+    DB[("<b>MongoDB</b>")]
+    TYPES["<b>@edurev/types</b><br/>shared types, permissions, tier rules"]
+    MOCK["<b>@edurev/mock-data</b><br/>seed data and demo mode"]
+
+    WEB -- "REST + Bearer token" --> API
+    API --> DB
+    TYPES -. imported by .-> WEB
+    TYPES -. imported by .-> API
+    MOCK -. "seeds on first start" .-> DB
+    API -. "fallback when DB is down (dev only)" .-> MOCK
