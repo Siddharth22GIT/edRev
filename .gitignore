@@ -7,3 +7,7 @@ coverage/
 *.tsbuildinfo
 *.log
 .next-build/
+
+# Local-only notes (not published)
+CLAUDE.md
+docs/
