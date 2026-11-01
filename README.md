@@ -11,12 +11,31 @@
 ![Express](https://img.shields.io/badge/Express-5-000000?logo=express)
 ![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose-47A248?logo=mongodb&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![Tailwind](https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?logo=tailwindcss&logoColor=white)
 
-[Features](#features) · [Architecture](#architecture) · [Quick start](#quick-start) · [Scripts](#scripts) · [Docs](#documentation)
+[About](#about) · [Features](#features) · [Architecture](#architecture) · [Workflows](#workflows) · [Quick start](#quick-start) · [Docs](#documentation)
 
 </div>
 
 ---
+
+## Table of contents
+
+- [About](#about)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Workflows](#workflows)
+  - [Student journey](#student-journey) · [Sign-up and approval](#sign-up-and-approval) · [Tiers](#tiers) · [Academic safeguards](#academic-safeguards)
+  - [Allocation](#allocation) · [Earnings](#earnings) · [Messages](#messages) · [Status lifecycles](#status-lifecycles)
+- [Data model](#data-model)
+- [Roles](#roles)
+- [Tech stack](#tech-stack)
+- [Quick start](#quick-start)
+- [Scripts](#scripts)
+- [Project structure](#project-structure)
+- [Roadmap](#roadmap)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
 
 ## About
 
@@ -40,26 +59,108 @@ EduRev is a role-based college workspace. Students train, bid on curated client 
 ## Architecture
 
 <p align="center">
-  <img src="docs/diagrams/architecture.png" alt="Architecture diagram" width="760" />
+  <img src="docs/diagrams/architecture.png" alt="Architecture: web app, API, MongoDB and shared packages" width="100%" />
 </p>
 
-TypeScript monorepo with npm workspaces. Role permissions and tier rules are defined **once** in `@edurev/types` and used by both the web app and the API, so the UI never shows an action the server would refuse.
+A TypeScript monorepo with npm workspaces. Role permissions and tier rules are defined **once** in `@edurev/types` and used by both the web app and the API, so the UI never shows an action the server would refuse.
 
-<details>
-<summary><b>Student journey</b></summary>
-<br/>
+### Request flow
+
 <p align="center">
-  <img src="docs/diagrams/student-journey.png" alt="Student journey diagram" width="860" />
+  <img src="docs/diagrams/request-flow.png" alt="Request flow through the API middleware" width="100%" />
 </p>
-</details>
 
-<details>
-<summary><b>Allocation flow</b></summary>
-<br/>
+Every route except login and health checks goes through `authenticate`. Each service works against MongoDB, or against in-memory demo data when the database is down (development only).
+
+## Workflows
+
+### Student journey
+
 <p align="center">
-  <img src="docs/diagrams/allocation.png" alt="Allocation flow diagram" width="760" />
+  <img src="docs/diagrams/student-journey.png" alt="Student journey from sign-up to verified earnings" width="100%" />
 </p>
-</details>
+
+### Sign-up and approval
+
+<p align="center">
+  <img src="docs/diagrams/signup.png" alt="Sign-up and approval flow" width="100%" />
+</p>
+
+A CGPA typed in by the student is only a *claim*. Safeguards and tier rules always use the **official** CGPA recorded by a Faculty Director.
+
+### Tiers
+
+<p align="center">
+  <img src="docs/diagrams/tiers.png" alt="Tier ladder from Starter to Elite" width="100%" />
+</p>
+
+<p align="center">
+  <img src="docs/diagrams/tier-suggestion.png" alt="Tier suggestion and approval flow" width="100%" />
+</p>
+
+Training, onboarding and automation can only **suggest** a tier. Only an Administrator changes an official tier. Rules live in [`packages/types/src/tiers.ts`](packages/types/src/tiers.ts).
+
+### Academic safeguards
+
+<p align="center">
+  <img src="docs/diagrams/safeguards.png" alt="Academic safeguard checks before allocation" width="100%" />
+</p>
+
+### Allocation
+
+<p align="center">
+  <img src="docs/diagrams/allocation.png" alt="Allocation flow with atomic claim" width="100%" />
+</p>
+
+If two staff members click **Allocate** at the same moment, only one database update can match the open status. The other gets `409`, so two students can never get the same project.
+
+### Earnings
+
+<p align="center">
+  <img src="docs/diagrams/earnings.png" alt="Earnings recording and verification" width="100%" />
+</p>
+
+### Messages
+
+<p align="center">
+  <img src="docs/diagrams/messages.png" alt="Messaging audiences and replies" width="100%" />
+</p>
+
+### Status lifecycles
+
+<p align="center">
+  <img src="docs/diagrams/lifecycles.png" alt="Opportunity and bid status lifecycles" width="720" />
+</p>
+
+Every status change is a conditional update (`findOneAndUpdate({ …, status: expected })`), never "read, then save".
+
+## Data model
+
+<p align="center">
+  <img src="docs/diagrams/data-model.png" alt="Entity relationship diagram" width="100%" />
+</p>
+
+- One bid per student per opportunity (unique index), one allocation per opportunity.
+- No duplicate earnings claims; unique email and registration number per account.
+- `PlatformAccount` stores **identifiers only**, never passwords or tokens.
+
+Field-level details: [docs/data-model.md](docs/data-model.md).
+
+## Roles
+
+| Role | Main responsibilities |
+| --- | --- |
+| Student | Onboarding, training, bidding, earnings, replying to messages (own records only) |
+| Bid Desk Analyst | Publish opportunities, review bids, allocate, confirm delivery |
+| Proposal Editor | Review bids and proposals |
+| Guild Lead | Mentor students, update training, message students |
+| Cell Coordinator | Approve sign-ups, allocate and reassign, verify earnings, message all students |
+| Faculty Director | Record official CGPA, override hour caps, verify earnings |
+| Placement Office | View earnings and aggregate reporting |
+| Dean | Verify earnings, view reporting, message students |
+| Administrator | Everything, plus official tier changes and institution settings |
+
+Permissions are defined in [`packages/types/src/permissions.ts`](packages/types/src/permissions.ts). Full table: [docs/access-control.md](docs/access-control.md).
 
 ## Tech stack
 
@@ -96,6 +197,19 @@ Password for all accounts: `Password123!`
 
 Also available: `editor@`, `guild@`, `placement@`, `dean@`.
 
+### Environment variables
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:4000/api` | API address used by the browser |
+| `API_PORT` | `4000` | API port |
+| `WEB_ORIGIN` | `http://localhost:3000` | Allowed CORS origin |
+| `MONGODB_URI` | `mongodb://127.0.0.1:27017/edurev` | Database connection |
+| `JWT_SECRET` | dev value | Token secret (32+ characters required in production) |
+| `REQUIRE_DB` | `false` | Refuse to start without MongoDB |
+
+See [`.env.example`](.env.example) for the full list.
+
 ## Scripts
 
 | Command | What it does |
@@ -116,8 +230,16 @@ edRev/
 ├── packages/
 │   ├── types/        shared types, PERMISSIONS, TIER_RULES
 │   └── mock-data/    seed and demo data
-└── docs/             architecture, access control, data model, module notes
+└── docs/             architecture, access control, data model, module notes, diagrams
 ```
+
+## Roadmap
+
+<p align="center">
+  <img src="docs/diagrams/roadmap.png" alt="Roadmap phases 1 to 6" width="100%" />
+</p>
+
+Green: done · Blue: next · Orange: planned. Details in [docs/improvement-plan.md](docs/improvement-plan.md).
 
 ## Documentation
 
@@ -138,7 +260,9 @@ edRev/
 3. Add an access-control test (401 / 403 / allowed) for every new endpoint.
 4. Before opening a PR, run `npm run typecheck`, `npm test` and `npm run test:mock --workspace @edurev/api`.
 
-Diagram sources live in [`docs/diagrams/`](docs/diagrams/). After editing a `.mmd` file, regenerate its image:
+### Editing diagrams
+
+Diagram sources are the `.mmd` files in [`docs/diagrams/`](docs/diagrams/). After editing one, regenerate its image:
 
 ```bash
 npx @mermaid-js/mermaid-cli -i docs/diagrams/<name>.mmd -o docs/diagrams/<name>.png -s 2 -b white
