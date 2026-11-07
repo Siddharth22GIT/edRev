@@ -4,7 +4,7 @@ import type { Server } from "node:http";
 import type { Bid } from "@edurev/types";
 import { bids as mockBids } from "@edurev/mock-data";
 import { isDbConnected } from "../config/db.js";
-import { DEV_JWT_SECRET, productionConfigProblems } from "../config/runtime.js";
+import { DEV_JWT_SECRET, isAllowedWebOrigin, productionConfigProblems } from "../config/runtime.js";
 import { sanitizeErrorMessage } from "../middleware/security.middleware.js";
 import { BidModel, UserModel } from "../models/index.js";
 import { proposalPdfProblem, screenshotProblem } from "../utils/uploads.js";
@@ -94,6 +94,39 @@ describe("Security Suite (Phase 1)", () => {
       assert.strictEqual(productionConfigProblems({ NODE_ENV: "production", JWT_SECRET: DEV_JWT_SECRET }).length, 1, "dev default");
       assert.strictEqual(productionConfigProblems({ NODE_ENV: "production", JWT_SECRET: "short" }).length, 1, "too short");
       assert.deepStrictEqual(productionConfigProblems({ NODE_ENV: "production", JWT_SECRET: "x".repeat(32) }), []);
+    });
+  });
+
+  describe("S14 CORS: which web addresses may call the API", () => {
+    const preflight = async (origin: string) => {
+      const res = await fetch(`${baseUrl}/auth/login`, {
+        method: "OPTIONS",
+        headers: { Origin: origin, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" },
+      });
+      return res.headers.get("access-control-allow-origin");
+    };
+
+    it("S14: outside production, the web app works from any loopback address and port", async () => {
+      assert.strictEqual(await preflight("http://localhost:3000"), "http://localhost:3000");
+      assert.strictEqual(await preflight("http://127.0.0.1:3000"), "http://127.0.0.1:3000", "the address that used to fail with NetworkError");
+      assert.strictEqual(await preflight("http://localhost:3001"), "http://localhost:3001", "Next.js moves to 3001 when 3000 is busy");
+      assert.strictEqual(await preflight("http://[::1]:3000"), "http://[::1]:3000");
+    });
+
+    it("S14: other sites are still refused, even in development", async () => {
+      assert.strictEqual(await preflight("http://evil.example"), null);
+      assert.strictEqual(await preflight("http://localhost.evil.example:3000"), null, "lookalike host");
+      assert.strictEqual(await preflight("http://127.0.0.1.nip.io:3000"), null, "lookalike IP");
+      assert.strictEqual(await preflight("https://localhost:3000"), null, "dev web app is plain http");
+    });
+
+    it("S14: production allows only WEB_ORIGIN (comma-separated), never loopback by default", () => {
+      const prod = { NODE_ENV: "production", WEB_ORIGIN: "https://ops.example.edu, https://www.ops.example.edu/" };
+      assert.strictEqual(isAllowedWebOrigin("https://ops.example.edu", prod), true);
+      assert.strictEqual(isAllowedWebOrigin("https://www.ops.example.edu", prod), true, "trailing slash and spaces ignored");
+      assert.strictEqual(isAllowedWebOrigin("http://127.0.0.1:3000", prod), false);
+      assert.strictEqual(isAllowedWebOrigin("http://localhost:3000", prod), false);
+      assert.strictEqual(isAllowedWebOrigin("http://localhost:3000", { NODE_ENV: "production" }), true, "unset WEB_ORIGIN keeps the old default");
     });
   });
 

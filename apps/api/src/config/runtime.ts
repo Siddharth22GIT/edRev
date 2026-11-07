@@ -25,3 +25,24 @@ export function productionConfigProblems(env: NodeJS.ProcessEnv = process.env): 
   else if (secret.length < 32) problems.push("JWT_SECRET must be at least 32 characters.");
   return problems;
 }
+
+/** S14: development only. The web app opened through any loopback address and port (localhost, 127.0.0.1, [::1]). */
+const LOOPBACK_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/;
+
+/** The web origins named in WEB_ORIGIN (comma-separated). Defaults to the dev web app. */
+export function configuredWebOrigins(env: NodeJS.ProcessEnv = process.env): string[] {
+  return (env.WEB_ORIGIN ?? "http://localhost:3000")
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/+$/, ""))
+    .filter(Boolean);
+}
+
+/**
+ * S14: which browser origins may call the API (CORS). Always the WEB_ORIGIN list. Outside production also any
+ * loopback origin, so opening the app as http://127.0.0.1:3000, or on port 3001 when 3000 is busy, still works.
+ * Production stays exact: only WEB_ORIGIN.
+ */
+export function isAllowedWebOrigin(origin: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  if (configuredWebOrigins(env).includes(origin)) return true;
+  return !isProduction(env) && LOOPBACK_ORIGIN.test(origin);
+}

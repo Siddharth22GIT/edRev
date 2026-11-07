@@ -3,6 +3,7 @@ import express from "express";
 import helmet from "helmet";
 import type { HealthStatus } from "@edurev/types";
 import { isDbConnected } from "./config/db.js";
+import { isAllowedWebOrigin } from "./config/runtime.js";
 import { jsonErrorHandler, requireDatabaseWhenDemoDisallowed, sanitizeErrorResponses } from "./middleware/security.middleware.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
 import authRoutes from "./routes/auth.routes.js";
@@ -19,7 +20,9 @@ export function createApp() {
 
   app.use(
     cors({
-      origin: process.env.WEB_ORIGIN ?? "http://localhost:3000",
+      // S14: WEB_ORIGIN (comma-separated) everywhere; any loopback origin too outside production.
+      // Requests without an Origin header (curl, server-to-server) aren't affected by CORS.
+      origin: (origin, callback) => callback(null, !origin || isAllowedWebOrigin(origin)),
       // Lets the web app read the filename of downloaded proposal documents
       exposedHeaders: ["Content-Disposition"],
     })
