@@ -14,8 +14,8 @@ import { runQuickAction } from "@/lib/quick-actions";
 
 /**
  * Avatar button in the top bar that opens the account menu (profile, photo, skills, settings, log out).
- * U4: the button is the identity block: name, then for students the official tier, registration number and
- * course/year (staff see their role). Long names are cut with "…"; missing details are simply left out.
+ * U4: the button is the identity block: name, then the official tier for students (staff see their role).
+ * The registration number, course and year are in the dropdown header, labelled. Long names are cut with "…".
  */
 export function ProfileMenu() {
   const { user, logout } = useAuth();
@@ -62,19 +62,7 @@ export function ProfileMenu() {
             {user.name}
           </span>
           {isStudent ? (
-            <span className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-brand-text-muted">
-              {student && <TierBadge className="!px-1.5 !py-0 !text-[10px]" showName={false} tier={student.tier} />}
-              {student?.registrationNumber && (
-                <span className="num hidden xl:inline" title="Registration number">
-                  {student.registrationNumber}
-                </span>
-              )}
-              {student && (
-                <span className="hidden max-w-[9rem] truncate lg:inline" title={student.program}>
-                  {student.course} · Year {student.year}
-                </span>
-              )}
-            </span>
+            <span className="mt-1 block">{student && <TierBadge className="!px-1.5 !py-0 !text-[10px]" tier={student.tier} />}</span>
           ) : (
             <span className="mt-0.5 block">
               <Badge tone="blue">{roleLabels[user.role]}</Badge>
@@ -91,9 +79,14 @@ export function ProfileMenu() {
             <div className="min-w-0">
               <p className="truncate font-bold">{user.name}</p>
               <p className="truncate text-xs text-[#C2DCF2]">{user.email}</p>
-              {isStudent && student && (student.registrationNumber || student.program) && (
-                <p className="mt-1 truncate text-xs text-[#C2DCF2]" title={student.program}>
-                  {[student.registrationNumber, `${student.course} ${student.program}`, `Year ${student.year}`].filter(Boolean).join(" · ")}
+              {isStudent && student?.registrationNumber && (
+                <p className="mt-1 text-xs text-[#C2DCF2]">
+                  Reg. No. <span className="nums font-semibold text-white">{student.registrationNumber}</span>
+                </p>
+              )}
+              {isStudent && student && (
+                <p className="mt-0.5 truncate text-xs text-[#C2DCF2]" title={`${student.course} ${student.program}`}>
+                  {student.course} {student.program} · Year {student.year}
                 </p>
               )}
               {isStudent && student && (

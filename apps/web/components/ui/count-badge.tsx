@@ -3,8 +3,10 @@ import { countLabel } from "@/lib/dashboard-items";
 const tones = {
   /** Red pill with white text (6.5:1): quick links. */
   alert: "bg-brand-alert text-white",
-  /** Charcoal pill with white text: on the orange rail, where red and orange would blur together. */
+  /** Charcoal pill with white text: on an orange background (the current page in the rail). */
   dark: "bg-brand-text text-white",
+  /** Orange pill with charcoal text (6.2:1): rail items on white. */
+  orange: "bg-brand-orange text-brand-text",
 };
 
 /**

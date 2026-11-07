@@ -83,10 +83,6 @@ body {
   outline: 2px solid rgb(var(--brand-blue));
   outline-offset: 2px;
 }
-/* On the orange rail blue isn't visible enough; charcoal is (6.2:1) */
-.on-orange :where(a, button):focus-visible {
-  outline-color: rgb(var(--brand-text));
-}
 
 button,
 input,
