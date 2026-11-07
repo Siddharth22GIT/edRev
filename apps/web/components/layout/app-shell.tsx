@@ -49,6 +49,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <WorkQueueProvider>
         <OnboardingRedirect />
         <div className="min-h-screen bg-brand-bg">
+          {/* Brand line: one thin orange edge across the full width, over both the rail and the top bar */}
+          <div aria-hidden="true" className="pointer-events-none fixed inset-x-0 top-0 z-[45] h-[3px] bg-gradient-to-r from-brand-orange via-brand-orange-hover to-brand-orange" />
           {sidebarOpen ? (
             <button
               aria-label="Close navigation"

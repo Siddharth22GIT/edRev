@@ -21,7 +21,7 @@ interface SidebarProps {
 
 /**
  * U3: the workspace rail (docs/modules/ui-shell.md). A light rail with the brand orange used only where it
- * means something: the logo, a thin accent line, and the current page (a solid orange pill, charcoal text).
+ * means something: the logo and the current page (a solid orange pill, charcoal text).
  * Built from `navigationFor(role)`, so a role only sees the pages it may use. On desktop it collapses to
  * icons with tooltips (saved in `user.preferences.navCollapsed`); on smaller screens it is a slide-in drawer.
  */
@@ -39,11 +39,8 @@ export function Sidebar({ open, onNavigate, collapsed = false, onToggleCollapsed
         collapsed ? "lg:w-[var(--rail-width-collapsed)]" : "lg:w-[var(--rail-width)]"
       } ${open ? "translate-x-0" : ""}`}
     >
-      {/* Brand accent: a thin orange line along the top of the rail */}
-      <div aria-hidden="true" className="h-1 shrink-0 bg-gradient-to-r from-brand-orange to-brand-orange-hover" />
-
-      {/* Brand */}
-      <div className={`flex h-[3.75rem] shrink-0 items-center justify-between gap-2 px-4 ${collapsed ? "lg:justify-center lg:px-0" : ""}`}>
+      {/* Brand (the orange brand line across the top of the screen is drawn by AppShell) */}
+      <div className={`flex h-16 shrink-0 items-center justify-between gap-2 px-4 ${collapsed ? "lg:justify-center lg:px-0" : ""}`}>
         <Link aria-label="REVALANCHE dashboard" className="flex min-w-0 items-center gap-2.5 rounded-lg" href="/dashboard" onClick={onNavigate}>
           <LogoMark className="shrink-0 rounded-lg shadow-sm" size={34} />
           <span className={`min-w-0 ${collapsed ? "lg:sr-only" : ""}`}>
