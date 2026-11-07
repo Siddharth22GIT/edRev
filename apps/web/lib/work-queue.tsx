@@ -6,6 +6,9 @@ import { can, type EarningsEntry, type Opportunity, type Proposal, type SignupRe
 import { useApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
+/** The lists the work queue reads. */
+export type WorkQueueSource = "earnings" | "opportunities" | "proposals" | "tierSuggestions" | "signupRequests";
+
 interface WorkQueue {
   /** Earnings waiting for verification (verifier roles only). */
   pendingEarnings: EarningsEntry[];
@@ -20,6 +23,8 @@ interface WorkQueue {
   /** Conversations with something new for the signed-in user (everyone). */
   unreadMessages: number;
   loading: boolean;
+  /** U9: lists that failed to load on the last refresh (shown as "couldn't load" with Retry instead of "all clear"). */
+  failed: Partial<Record<WorkQueueSource, boolean>>;
   /** Badge counts keyed by sidebar route. */
   counts: Record<string, number>;
   refresh: () => void;
@@ -43,6 +48,7 @@ export function WorkQueueProvider({ children }: { children: ReactNode }) {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [messagesVersion, setMessagesVersion] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState<Partial<Record<WorkQueueSource, boolean>>>({});
   const [version, setVersion] = useState(0);
 
   const role = user?.role;
@@ -51,26 +57,32 @@ export function WorkQueueProvider({ children }: { children: ReactNode }) {
     if (!role) return;
     let cancelled = false;
 
-    const readList = async <T,>(path: string): Promise<T[]> => {
+    const failures: Partial<Record<WorkQueueSource, boolean>> = {};
+    const readList = async <T,>(source: WorkQueueSource, path: string): Promise<T[]> => {
       try {
         const res = await apiFetch(path);
-        if (!res.ok) return [];
+        if (!res.ok) {
+          failures[source] = true;
+          return [];
+        }
         const json = await res.json();
         return Array.isArray(json?.data) ? json.data : [];
       } catch {
+        failures[source] = true;
         return [];
       }
     };
 
     (async () => {
       const [earnings, opportunities, proposals, suggestions, signups] = await Promise.all([
-        can(role, "EARNINGS_VERIFY") ? readList<EarningsEntry>("/earnings") : Promise.resolve([]),
-        can(role, "OPPORTUNITY_ALLOCATE") ? readList<Opportunity>("/opportunities") : Promise.resolve([]),
-        role === "PROPOSAL_EDITOR" || role === "ADMINISTRATOR" ? readList<Proposal>("/proposals") : Promise.resolve([]),
-        can(role, "TIER_UPDATE") ? readList<TierSuggestion>("/tier-suggestions?status=PENDING") : Promise.resolve([]),
-        can(role, "SIGNUP_REVIEW") ? readList<SignupRequest>("/signup-requests?status=PENDING_APPROVAL") : Promise.resolve([]),
+        can(role, "EARNINGS_VERIFY") ? readList<EarningsEntry>("earnings", "/earnings") : Promise.resolve([]),
+        can(role, "OPPORTUNITY_ALLOCATE") ? readList<Opportunity>("opportunities", "/opportunities") : Promise.resolve([]),
+        role === "PROPOSAL_EDITOR" || role === "ADMINISTRATOR" ? readList<Proposal>("proposals", "/proposals") : Promise.resolve([]),
+        can(role, "TIER_UPDATE") ? readList<TierSuggestion>("tierSuggestions", "/tier-suggestions?status=PENDING") : Promise.resolve([]),
+        can(role, "SIGNUP_REVIEW") ? readList<SignupRequest>("signupRequests", "/signup-requests?status=PENDING_APPROVAL") : Promise.resolve([]),
       ]);
       if (cancelled) return;
+      setFailed(failures);
       setPendingEarnings(earnings.filter((e) => e.verificationStatus === "PENDING"));
       setReviewOpportunities(opportunities.filter((o) => o.status === "UNDER_REVIEW"));
       setReviewProposals(proposals.filter((p) => p.status === "IN_REVIEW"));
@@ -127,7 +139,7 @@ export function WorkQueueProvider({ children }: { children: ReactNode }) {
 
   return (
     <WorkQueueContext.Provider
-      value={{ pendingEarnings, reviewOpportunities, reviewProposals, tierSuggestions, signupRequests, unreadMessages, loading, counts, refresh: () => setVersion((v) => v + 1) }}
+      value={{ pendingEarnings, reviewOpportunities, reviewProposals, tierSuggestions, signupRequests, unreadMessages, loading, failed, counts, refresh: () => setVersion((v) => v + 1) }}
     >
       {children}
     </WorkQueueContext.Provider>

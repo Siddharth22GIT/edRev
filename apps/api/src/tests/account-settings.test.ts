@@ -150,5 +150,21 @@ describe("Account & Institutional Settings Suite", () => {
         await raw("PATCH", "/auth/me/preferences", selfToken, { celebrations: true, reduceMotion: false, showBadges: true });
       }
     });
+
+    it("U3: saves the collapsed icon rail without changing the other preferences", async () => {
+      assert.strictEqual((await raw("PATCH", "/auth/me/preferences", undefined, { navCollapsed: true })).status, 401);
+      assert.strictEqual((await raw("PATCH", "/auth/me/preferences", selfToken, { navCollapsed: "yes" })).status, 400);
+
+      const before = (await raw("GET", "/auth/me", selfToken)).json.user.preferences;
+      const collapsed = await raw("PATCH", "/auth/me/preferences", selfToken, { navCollapsed: true });
+      assert.strictEqual(collapsed.status, 200);
+      assert.strictEqual(collapsed.json.data.navCollapsed, true);
+      assert.strictEqual(collapsed.json.data.celebrations, before.celebrations, "other preferences untouched");
+      assert.strictEqual((await raw("GET", "/auth/me", selfToken)).json.user.preferences.navCollapsed, true);
+
+      const expanded = await raw("PATCH", "/auth/me/preferences", selfToken, { navCollapsed: false });
+      assert.strictEqual(expanded.status, 200);
+      assert.strictEqual(expanded.json.data.navCollapsed, false);
+    });
   });
 });

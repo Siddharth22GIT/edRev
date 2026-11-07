@@ -177,7 +177,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                   role="option"
                   type="button"
                 >
-                  <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${i === active ? "bg-[#F2A65A] text-white" : "bg-[#F7F7F6] text-[#3978B8]"}`}>
+                  <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${i === active ? "bg-[#F2A65A] text-[#30343B]" : "bg-[#F7F7F6] text-[#3978B8]"}`}>
                     {entry.icon}
                   </span>
                   <span className="min-w-0 flex-1">

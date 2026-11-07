@@ -7,6 +7,7 @@ import type { HealthStatus } from "@edurev/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconChevronDown, IconMenu, IconPlus, IconSearch } from "@/components/ui/icons";
+import { LogoMark } from "@/components/ui/logo";
 import { API_BASE } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { quickActionsFor, runQuickAction } from "@/lib/quick-actions";
@@ -55,6 +56,10 @@ export function Topbar({ onMenuClick, onOpenSearch }: { onMenuClick: () => void;
       >
         <IconMenu size={20} />
       </button>
+      {/* U4: the rail (with the logo) is hidden on small screens, so the logo shows here instead */}
+      <Link aria-label="REVALANCHE dashboard" className="shrink-0 rounded-lg lg:hidden" href="/dashboard">
+        <LogoMark size={32} />
+      </Link>
 
       {/* Search opens the Ctrl+K command bar */}
       <div className="hidden max-w-md flex-1 md:block">

@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { MyProfileProvider } from "@/lib/my-profile";
+import { useNavCollapsed } from "@/lib/nav-collapse";
 import { WorkQueueProvider } from "@/lib/work-queue";
 import { BottomNav } from "./bottom-nav";
 import { CommandPalette } from "./command-palette";
@@ -16,6 +17,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const pathname = usePathname();
   const { user } = useAuth();
+  const { collapsed, toggle: toggleCollapsed } = useNavCollapsed();
   const reduceMotion = Boolean(user?.preferences?.reduceMotion);
   const celebrations = user?.preferences?.celebrations !== false;
 
@@ -46,7 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <MyProfileProvider>
       <WorkQueueProvider>
         <OnboardingRedirect />
-        <div className="min-h-screen bg-[#F7F7F6]">
+        <div className="min-h-screen bg-brand-bg">
           {sidebarOpen ? (
             <button
               aria-label="Close navigation"
@@ -55,8 +57,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               type="button"
             />
           ) : null}
-          <Sidebar onNavigate={() => setSidebarOpen(false)} open={sidebarOpen} />
-          <div className="min-h-screen lg:pl-64">
+          <Sidebar collapsed={collapsed} onNavigate={() => setSidebarOpen(false)} onToggleCollapsed={toggleCollapsed} open={sidebarOpen} />
+          {/* U3: content makes room for the rail; the padding follows its width (expanded or collapsed) */}
+          <div className={`min-h-screen transition-[padding] duration-200 ${collapsed ? "lg:pl-[var(--rail-width-collapsed)]" : "lg:pl-[var(--rail-width)]"}`}>
             <Topbar onMenuClick={() => setSidebarOpen(true)} onOpenSearch={() => setPaletteOpen(true)} />
             <main className="mx-auto w-full max-w-screen-2xl px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:py-8">
               {/* Keyed by route so each page gently fades in on navigation (opacity only, so fixed-position modals are unaffected) */}

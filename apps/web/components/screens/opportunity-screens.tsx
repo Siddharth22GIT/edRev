@@ -241,7 +241,7 @@ export function OpportunitiesScreen() {
               </p>
               <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
                 <TierBadge showName={false} suffix="+" tier={opportunity.requiredTier} />
-                <Badge tone="orange">{opportunity.matchScore || 95}% match</Badge>
+                {/* U11: the stored matchScore is a placeholder; the real skill match ("4 of 5 skills") comes with F4 */}
               </div>
               <div className="mt-auto flex items-end justify-between border-t border-[#E6E6E6] pt-4 mt-5">
                 <div>
@@ -520,12 +520,7 @@ export function OpportunityDetailScreen({ id }: { id: string }) {
               <dt className="text-[#666D7A]">Deadline</dt>
               <dd className="font-semibold text-[#30343B]">{formatDate(opp.deadline)}</dd>
             </div>
-            <div className="flex items-center justify-between">
-              <dt className="text-[#666D7A]">Student Match</dt>
-              <dd className="font-bold text-[#C27803]">
-                <Badge tone="orange">{opp.matchScore}% Match</Badge>
-              </dd>
-            </div>
+            {/* U11: "Student Match" is hidden until the real skill match (F4); the stored matchScore is a placeholder */}
             <div className="flex items-center justify-between">
               <dt className="text-[#666D7A]">Last Updated</dt>
               <dd className="font-semibold text-[#30343B]">{formatDate(opp.updatedAt)}</dd>

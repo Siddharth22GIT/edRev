@@ -1,6 +1,18 @@
-# Running notes: where we left off (30 Oct 2026)
+# Running notes: where we left off (7 Nov 2026)
 
-**Tomorrow (31 Oct):** Phase 3 (new look), then Phase 4 after the user decides D1–D5. Task list: `CLAUDE.md` → "Next session".
+**Next:** Phase 4 (safeguards + SLA engine). First ask the user for decisions D1–D5. Task list: `CLAUDE.md` → "Next session".
+
+## Phase 3 (new look): done 7 Nov
+
+See [`docs/modules/ui-shell.md`](docs/modules/ui-shell.md). Covers:
+- U1 fonts (Inter + JetBrains Mono via `next/font`) and U2 CSS-variable design tokens
+- U3 orange collapsible icon rail (`preferences.navCollapsed`) and U4 top-bar identity block
+- U5 notice line, U6 quick links, U7 `TabCard`
+- U8 student and U9 staff dashboard cards (each card fails on its own)
+- U10 contrast and focus fixes; U11 names trimmed on read and the fake "% match" hidden
+
+163 API tests in both modes (3 new; 1 / 12 skipped as before), web build OK. Screenshots: student (desktop and phone), administrator, coordinator (rail collapsed), analyst opportunities list.
+**Heads-up:** `next/font` downloads the fonts from Google at build/dev start, so it needs internet once. Without it, dev falls back to system fonts.
 
 Pick up here next session. Project rules and conventions are in `CLAUDE.md`.
 

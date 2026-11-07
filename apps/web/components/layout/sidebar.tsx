@@ -2,18 +2,29 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { isCurrentRoute, navigationFor, roleLabels, settingsLinksFor } from "@/lib/navigation";
+import { isCurrentRoute, navigationFor, settingsLinksFor } from "@/lib/navigation";
 import { useWorkQueue } from "@/lib/work-queue";
+import { CountBadge } from "@/components/ui/count-badge";
 import { LogoMark } from "@/components/ui/logo";
-import { IconSettings, IconX } from "@/components/ui/icons";
+import { IconChevronRight, IconSettings, IconX } from "@/components/ui/icons";
 
 interface SidebarProps {
+  /** Phone/tablet drawer is open. */
   open: boolean;
   onNavigate: () => void;
+  /** U3: desktop rail shows icons only. The phone drawer always shows labels. */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 }
 
-export function Sidebar({ open, onNavigate }: SidebarProps) {
+/**
+ * U3: the orange icon rail (docs/modules/ui-shell.md). Built from `navigationFor(role)`, so a role only sees the
+ * pages it may use. On desktop it can be collapsed to icons with tooltips (saved in `user.preferences.navCollapsed`);
+ * on smaller screens it is a slide-in drawer. Text and icons are charcoal on orange (6.2:1), never white.
+ */
+export function Sidebar({ open, onNavigate, collapsed = false, onToggleCollapsed }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
   const { counts } = useWorkQueue();
@@ -22,112 +33,121 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col border-r border-[#E6E6E6] bg-white px-4 py-5 text-[#30343B] shadow-sm transition-transform lg:translate-x-0 ${
-        open ? "translate-x-0" : ""
-      }`}
+      aria-label="Workspace"
+      className={`on-orange fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col bg-brand-orange text-brand-text shadow-lg transition-[transform,width] duration-200 lg:translate-x-0 lg:shadow-none ${
+        collapsed ? "lg:w-[var(--rail-width-collapsed)]" : "lg:w-[var(--rail-width)]"
+      } ${open ? "translate-x-0" : ""}`}
     >
-      {/* Brand Header */}
-      <div className="mb-6 flex items-center justify-between px-2">
-        <Link className="flex items-center gap-3" href="/dashboard" onClick={onNavigate}>
-          <LogoMark className="shrink-0 rounded-xl shadow-sm ring-2 ring-[#FBD7B3]" size={40} />
-          <div>
-            <span className="block text-base font-extrabold tracking-tight text-[#30343B]">REVALANCHE</span>
-            <span className="block text-[11px] font-semibold text-[#3978B8]">Institutional Earning OS</span>
-          </div>
+      {/* Brand */}
+      <div className={`flex h-16 shrink-0 items-center justify-between gap-2 border-b border-brand-text/10 px-4 ${collapsed ? "lg:justify-center lg:px-0" : ""}`}>
+        <Link aria-label="REVALANCHE dashboard" className="flex min-w-0 items-center gap-2.5 rounded-lg" href="/dashboard" onClick={onNavigate}>
+          <LogoMark className="shrink-0 rounded-lg shadow-sm ring-2 ring-white/70" size={36} />
+          <span className={`min-w-0 ${collapsed ? "lg:sr-only" : ""}`}>
+            <span className="block truncate text-[15px] font-extrabold tracking-tight">REVALANCHE</span>
+            <span className="block truncate text-[11px] font-semibold">Institutional Earning OS</span>
+          </span>
         </Link>
-        <button
-          className="rounded-lg p-1.5 text-[#666D7A] hover:bg-[#F7F7F6] lg:hidden"
-          onClick={onNavigate}
-          type="button"
-          aria-label="Close menu"
-        >
+        <button aria-label="Close menu" className="rounded-lg p-1.5 hover:bg-white/40 lg:hidden" onClick={onNavigate} type="button">
           <IconX size={18} />
         </button>
       </div>
 
-      {/* Main Navigation */}
-      <div className="px-2 mb-2 text-[10px] font-bold uppercase tracking-wider text-[#8C93A0]">
-        Workspace Navigation
-      </div>
-      <nav aria-label="Main navigation" className="space-y-1">
+      {/* Main navigation. overflow is only clipped on small screens, so desktop tooltips can sit outside the rail. */}
+      <nav aria-label="Main navigation" className={`flex-1 space-y-1 overflow-y-auto px-3 py-4 lg:overflow-visible ${collapsed ? "lg:px-2.5" : ""}`}>
         {items.map((item) => {
-          const current = isCurrentRoute(pathname, item.href);
-          const Icon = item.icon;
           const count = showBadges ? counts[item.href] ?? 0 : 0;
           return (
-            <Link
-              className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all ${
-                current
-                  ? "bg-[#FEF6EE] text-[#30343B] border-l-4 border-[#F2A65A] shadow-xs"
-                  : "text-[#666D7A] hover:bg-[#F7F7F6] hover:text-[#30343B]"
-              }`}
+            <RailLink
+              collapsed={collapsed}
+              count={count}
+              current={isCurrentRoute(pathname, item.href)}
               href={item.href}
+              icon={<item.icon size={19} />}
               key={item.href}
-              onClick={onNavigate}
-            >
-              <span
-                className={`grid h-5 w-5 place-items-center transition-colors ${
-                  current ? "text-[#C27803]" : "text-[#8C93A0] group-hover:text-[#3978B8]"
-                }`}
-              >
-                <Icon size={18} />
-              </span>
-              <span className="flex-1">{item.label}</span>
-              {count > 0 && (
-                <span
-                  aria-label={`${count} waiting`}
-                  className="grid h-5 min-w-5 place-items-center rounded-full bg-[#F2A65A] px-1.5 text-[11px] font-extrabold text-[#30343B] ring-2 ring-white"
-                >
-                  {count}
-                </span>
-              )}
-            </Link>
+              label={item.label}
+              onNavigate={onNavigate}
+            />
           );
         })}
       </nav>
 
-      {/* Footer Settings & Session Context */}
-      <div className="mt-auto border-t border-[#E6E6E6] pt-4">
-        {settingsLinksFor(user?.role).map((link) => {
-          const current = pathname === link.href;
-          return (
-            <Link
-              className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all ${
-                current ? "bg-[#FEF6EE] text-[#30343B] border-l-4 border-[#F2A65A]" : "text-[#666D7A] hover:bg-[#F7F7F6] hover:text-[#30343B]"
-              }`}
-              href={link.href}
-              key={link.href}
-              onClick={onNavigate}
-            >
-              <span className={`grid h-5 w-5 place-items-center ${current ? "text-[#C27803]" : "text-[#8C93A0] group-hover:text-[#3978B8]"}`}>
-                <IconSettings size={18} />
-              </span>
-              <span>{link.label}</span>
-            </Link>
-          );
-        })}
-
-        <div className="mt-4 rounded-xl border border-[#E6E6E6] bg-[#F7F7F6] p-3 text-xs text-[#666D7A]">
-          <div className="flex items-center justify-between pb-1.5 border-b border-[#E6E6E6]">
-            <span className="font-bold text-[10px] uppercase tracking-wider text-[#30343B]">Session Active</span>
-            <span className="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
-          </div>
-          {user ? (
-            <div className="mt-2">
-              <p className="font-bold text-[#30343B] truncate">{user.name}</p>
-              <p className="text-[11px] font-semibold text-[#3978B8] mt-0.5">
-                {roleLabels[user.role] || user.role}
-              </p>
-            </div>
-          ) : (
-            <div className="mt-2">
-              <Link className="font-bold text-[#3978B8] hover:underline" href="/login">
-                Sign In to Platform →
-              </Link>
-            </div>
-          )}
-        </div>
+      {/* Settings + collapse control */}
+      <div className={`shrink-0 space-y-1 border-t border-brand-text/10 px-3 py-3 ${collapsed ? "lg:px-2.5" : ""}`}>
+        {settingsLinksFor(user?.role).map((link) => (
+          <RailLink
+            collapsed={collapsed}
+            current={pathname === link.href}
+            href={link.href}
+            icon={<IconSettings size={19} />}
+            key={link.href}
+            label={link.label}
+            onNavigate={onNavigate}
+          />
+        ))}
+        {onToggleCollapsed && (
+          <button
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? "Expand menu" : "Collapse menu"}
+            className={`group relative hidden w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-bold transition hover:bg-white/40 lg:flex ${collapsed ? "justify-center px-0" : ""}`}
+            onClick={onToggleCollapsed}
+            type="button"
+          >
+            <IconChevronRight aria-hidden="true" className={`shrink-0 transition-transform ${collapsed ? "" : "rotate-180"}`} size={18} />
+            <span className={collapsed ? "sr-only" : ""}>Collapse menu</span>
+            {collapsed && <Tooltip label="Expand menu" />}
+          </button>
+        )}
       </div>
     </aside>
+  );
+}
+
+function RailLink({
+  href,
+  label,
+  icon,
+  current,
+  collapsed,
+  count = 0,
+  onNavigate,
+}: {
+  href: string;
+  label: string;
+  icon: ReactNode;
+  current: boolean;
+  collapsed: boolean;
+  count?: number;
+  onNavigate: () => void;
+}) {
+  return (
+    <Link
+      aria-current={current ? "page" : undefined}
+      className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+        current ? "bg-white font-bold shadow-sm" : "hover:bg-white/40"
+      } ${collapsed ? "lg:justify-center lg:px-0" : ""}`}
+      href={href}
+      onClick={onNavigate}
+    >
+      <span className={`relative grid h-5 w-5 shrink-0 place-items-center ${current ? "text-brand-orange-dark" : ""}`}>
+        <span aria-hidden="true">{icon}</span>
+        {/* Collapsed rail: the count sits on the icon */}
+        {collapsed && count > 0 && <CountBadge className="absolute -right-3 -top-2.5 hidden h-4 min-w-4 px-1 text-[9px] ring-2 ring-brand-orange lg:inline-grid" count={count} tone="dark" />}
+      </span>
+      <span className={`min-w-0 flex-1 truncate ${collapsed ? "lg:sr-only" : ""}`}>{label}</span>
+      {count > 0 && <CountBadge className={collapsed ? "lg:hidden" : ""} count={count} tone="dark" />}
+      {collapsed && <Tooltip label={label} />}
+    </Link>
+  );
+}
+
+/** Desktop-only label shown beside a collapsed rail icon on hover or keyboard focus. */
+function Tooltip({ label }: { label: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-brand-text px-2.5 py-1 text-xs font-semibold text-white shadow-dropdown lg:group-hover:block lg:group-focus-visible:block"
+    >
+      {label}
+    </span>
   );
 }

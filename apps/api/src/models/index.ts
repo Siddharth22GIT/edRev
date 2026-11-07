@@ -328,6 +328,7 @@ const userSchema = new Schema<User>(
       celebrations: { type: Boolean },
       reduceMotion: { type: Boolean },
       showBadges: { type: Boolean },
+      navCollapsed: { type: Boolean }, // U3: optional; absent = expanded
     },
   },
   { timestamps: true }

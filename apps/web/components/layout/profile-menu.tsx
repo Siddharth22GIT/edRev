@@ -5,13 +5,18 @@ import { usePathname, useRouter } from "next/navigation";
 import { TIER_INFO } from "@edurev/types";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { TierBadge } from "@/components/ui/tier-badge";
 import { IconCamera, IconChevronDown, IconGraduationCap, IconLogout, IconSettings, IconUser } from "@/components/ui/icons";
 import { useAuth } from "@/lib/auth-context";
 import { useMyProfile } from "@/lib/my-profile";
 import { roleLabels, settingsLinksFor } from "@/lib/navigation";
 import { runQuickAction } from "@/lib/quick-actions";
 
-/** Avatar button in the top bar that opens the account menu (profile, photo, skills, settings, log out). */
+/**
+ * Avatar button in the top bar that opens the account menu (profile, photo, skills, settings, log out).
+ * U4: the button is the identity block: name, then for students the official tier, registration number and
+ * course/year (staff see their role). Long names are cut with "…"; missing details are simply left out.
+ */
 export function ProfileMenu() {
   const { user, logout } = useAuth();
   const { student } = useMyProfile();
@@ -52,11 +57,29 @@ export function ProfileMenu() {
         type="button"
       >
         <Avatar initials={student?.avatarInitials} name={user.name} photoUrl={student?.photoUrl} size={36} />
-        <span className="hidden text-left sm:block">
-          <span className="block text-sm font-bold leading-tight text-[#30343B]">{user.name}</span>
-          <span className="mt-0.5 block">
-            <Badge tone="blue">{roleLabels[user.role]}</Badge>
+        <span className="hidden min-w-0 text-left sm:block">
+          <span className="block max-w-[11rem] truncate text-sm font-bold leading-tight text-brand-text xl:max-w-[16rem]" title={user.name}>
+            {user.name}
           </span>
+          {isStudent ? (
+            <span className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-brand-text-muted">
+              {student && <TierBadge className="!px-1.5 !py-0 !text-[10px]" showName={false} tier={student.tier} />}
+              {student?.registrationNumber && (
+                <span className="num hidden xl:inline" title="Registration number">
+                  {student.registrationNumber}
+                </span>
+              )}
+              {student && (
+                <span className="hidden max-w-[9rem] truncate lg:inline" title={student.program}>
+                  {student.course} · Year {student.year}
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="mt-0.5 block">
+              <Badge tone="blue">{roleLabels[user.role]}</Badge>
+            </span>
+          )}
         </span>
         <IconChevronDown className={`hidden text-[#8C93A0] transition sm:block ${open ? "rotate-180" : ""}`} size={16} />
       </button>
@@ -68,6 +91,11 @@ export function ProfileMenu() {
             <div className="min-w-0">
               <p className="truncate font-bold">{user.name}</p>
               <p className="truncate text-xs text-[#C2DCF2]">{user.email}</p>
+              {isStudent && student && (student.registrationNumber || student.program) && (
+                <p className="mt-1 truncate text-xs text-[#C2DCF2]" title={student.program}>
+                  {[student.registrationNumber, `${student.course} ${student.program}`, `Year ${student.year}`].filter(Boolean).join(" · ")}
+                </p>
+              )}
               {isStudent && student && (
                 <p className="mt-1 text-xs font-semibold text-[#FBD7B3]">
                   CGPA {student.cgpa.toFixed(2)} · {student.tier.replace("_", " ")} {TIER_INFO[student.tier]?.name}

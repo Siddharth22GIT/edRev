@@ -4,6 +4,40 @@
 
 :root {
   color-scheme: light;
+
+  /* U2: design tokens. Colours are "R G B" channels so Tailwind's opacity modifiers work
+     (bg-brand-orange/20). Tailwind's brand-* colours, radius and shadows read these. */
+  --brand-orange: 242 166 90; /* #F2A65A */
+  --brand-orange-hover: 229 148 67; /* #E59443 */
+  --brand-orange-dark: 194 120 3; /* #C27803 */
+  --brand-orange-light: 254 246 238; /* #FEF6EE */
+  --brand-orange-border: 251 215 179; /* #FBD7B3 */
+  --brand-blue: 57 120 184; /* #3978B8 */
+  --brand-blue-hover: 47 101 156; /* #2F659C */
+  --brand-blue-dark: 32 77 125; /* #204D7D */
+  --brand-blue-light: 239 246 252; /* #EFF6FC */
+  --brand-blue-border: 194 220 242; /* #C2DCF2 */
+  --brand-bg: 247 247 246; /* #F7F7F6 */
+  --brand-card: 255 255 255;
+  --brand-text: 48 52 59; /* #30343B */
+  --brand-text-muted: 102 109 122; /* #666D7A */
+  --brand-text-light: 140 147 160; /* #8C93A0 */
+  --brand-border: 230 230 230; /* #E6E6E6 */
+  --brand-border-dark: 209 213 219; /* #D1D5DB */
+  --brand-alert: 190 18 60; /* rose-700: counts and overdue notices */
+
+  --radius-card: 0.75rem;
+  --radius-control: 0.5rem;
+  --shadow-panel: 0 4px 16px -2px rgba(48, 52, 59, 0.05), 0 2px 6px -1px rgba(48, 52, 59, 0.03);
+  --shadow-card: 0 1px 3px 0 rgba(48, 52, 59, 0.04), 0 1px 2px -1px rgba(48, 52, 59, 0.04);
+  --shadow-card-hover: 0 6px 20px -4px rgba(48, 52, 59, 0.08), 0 4px 8px -2px rgba(48, 52, 59, 0.04);
+  --shadow-dropdown: 0 10px 25px -5px rgba(48, 52, 59, 0.1), 0 8px 10px -6px rgba(48, 52, 59, 0.04);
+
+  /* Layout */
+  --rail-width: 15rem;
+  --rail-width-collapsed: 4.5rem;
+
+  /* Older names, still used by existing code */
   --bg-page: #F7F7F6;
   --bg-card: #FFFFFF;
   --text-main: #30343B;
@@ -28,7 +62,30 @@ body {
   min-height: 100vh;
   background-color: #F7F7F6;
   color: #30343B;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* U1: Inter from next/font; system fonts if it fails, plus Indic fallbacks for names Inter can't draw */
+  font-family: var(--font-sans, ui-sans-serif), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Nirmala UI", "Noto Sans Devanagari", "Noto Sans", sans-serif;
+}
+
+/* U1: numbers inside text (dates, counts in a sentence) keep the body font with even-width digits */
+.nums {
+  font-variant-numeric: tabular-nums;
+}
+/* U1: standalone figures (card totals, count badges) use the monospace font */
+.num {
+  font-family: var(--font-mono, ui-monospace), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* U10: one visible focus ring for keyboard users everywhere (components may refine it). Mouse clicks don't show it. */
+:where(a, button, [role="button"], [role="menuitem"], [role="switch"], [role="tab"], summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid rgb(var(--brand-blue));
+  outline-offset: 2px;
+}
+/* On the orange rail blue isn't visible enough; charcoal is (6.2:1) */
+.on-orange :where(a, button):focus-visible {
+  outline-color: rgb(var(--brand-text));
 }
 
 button,

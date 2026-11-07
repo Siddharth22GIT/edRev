@@ -129,7 +129,7 @@ export async function changePasswordHandler(req: Request, res: Response): Promis
   }
 }
 
-const PREFERENCE_KEYS: (keyof UserPreferences)[] = ["celebrations", "reduceMotion", "showBadges"];
+const PREFERENCE_KEYS: (keyof UserPreferences)[] = ["celebrations", "reduceMotion", "showBadges", "navCollapsed"];
 
 /** Signed-in user updates their own preferences. Only known boolean keys are accepted. */
 export async function updatePreferencesHandler(req: Request, res: Response): Promise<void> {

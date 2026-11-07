@@ -14,20 +14,30 @@ import { deadlineInstant, getInstitutionTimeZone } from "../utils/time.js";
 import { sendMessageService } from "./messages.service.js";
 import { checkSafeguardsService } from "./safeguard.service.js";
 
+/**
+ * U11: records saved before Phase 2 may carry stray spaces in their names ("Hcl Amplified "). New records are
+ * trimmed on create; older ones are tidied here when read, so every screen shows the clean name. Returns a copy.
+ */
+function tidyNames(opp: Opportunity): Opportunity {
+  const tidy = (value: string | undefined) => (typeof value === "string" ? value.trim() : value);
+  return { ...opp, title: tidy(opp.title)!, project: tidy(opp.project)!, company: tidy(opp.company)!, client: tidy(opp.client)! };
+}
+
 export async function getOpportunitiesService(): Promise<Opportunity[]> {
   if (isDbConnected()) {
     const opps = await OpportunityModel.find().lean();
-    return opps.map((item) => stripMongoFields<Opportunity>(item));
+    return opps.map((item) => tidyNames(stripMongoFields<Opportunity>(item)));
   }
-  return mockOpportunities;
+  return mockOpportunities.map(tidyNames);
 }
 
 export async function getOpportunityByIdService(id: string): Promise<Opportunity | null> {
   if (isDbConnected()) {
     const opp = await OpportunityModel.findOne({ id }).lean();
-    return opp ? stripMongoFields<Opportunity>(opp) : null;
+    return opp ? tidyNames(stripMongoFields<Opportunity>(opp)) : null;
   }
-  return mockGetOpportunity(id) ?? null;
+  const mock = mockGetOpportunity(id);
+  return mock ? tidyNames(mock) : null;
 }
 
 export async function getBidsForOpportunityService(opportunityId: string): Promise<Bid[]> {

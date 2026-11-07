@@ -35,7 +35,7 @@ export interface Proposal { id: string; title: string; studentName: string; oppo
 export interface Safeguard { id: string; name: string; description: string; status: "healthy" | "attention" | "blocked"; owner: string; lastCheckedAt: string; }
 export interface SettingsSummary { organizationName: string; notificationEmail: string; weeklyDigestEnabled: boolean; timezone: string; signupEnabled?: boolean; allowedSignupDomains?: string[]; }
 /** Personal app preferences, saved per account. */
-export interface UserPreferences { celebrations: boolean; reduceMotion: boolean; showBadges: boolean; }
+export interface UserPreferences { celebrations: boolean; reduceMotion: boolean; showBadges: boolean; /** U3: the workspace icon rail is collapsed. Optional and not in the defaults, so older responses keep their shape. */ navCollapsed?: boolean; }
 export const DEFAULT_USER_PREFERENCES: UserPreferences = { celebrations: true, reduceMotion: false, showBadges: true };
 /** Accounts created before self sign-up have no status and count as ACTIVE. */
 export type AccountStatus = "ACTIVE" | "PENDING_APPROVAL" | "REJECTED";
