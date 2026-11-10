@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { can, type Allocation, type Bid, type Opportunity } from "@edurev/types";
+import { can, type Allocation, type Bid, type Opportunity, type SlaView } from "@edurev/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -27,7 +27,8 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
   const { apiFetch, fetchBlobUrl } = useApi();
   const workQueue = useWorkQueue();
   const [bids, setBids] = useState<Bid[]>([]);
-  const [allocation, setAllocation] = useState<Allocation | null>(null);
+  // Phase 4 (G9): the API adds the computed SLA to the allocation
+  const [allocation, setAllocation] = useState<(Allocation & { sla?: SlaView }) | null>(null);
   const [message, setMessage] = useState("");
   const [state, setState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [amount, setAmount] = useState(String(opportunity.budget));
@@ -448,8 +449,9 @@ export function BidDesk({ opportunity }: { opportunity: Opportunity }) {
                 <h3 className="mt-0.5 text-lg font-bold text-[#30343B]">Work Allocation & SLA Tracking</h3>
               </div>
             </div>
-            <Badge tone={allocation.slaStatus === "OVERDUE" ? "red" : allocation.slaStatus === "AT_RISK" ? "amber" : "green"}>
-              SLA Status: {allocation.slaStatus || "ACTIVE"}
+            {/* Phase 4 (G9): the computed SLA (from the API) when present, else the stored status */}
+            <Badge tone={allocation.sla?.state === "OVERDUE" || allocation.slaStatus === "OVERDUE" ? "red" : allocation.sla?.state === "AT_RISK" || allocation.slaStatus === "AT_RISK" ? "amber" : "green"}>
+              SLA Status: {allocation.sla?.label ?? (allocation.slaStatus || "ACTIVE")}
             </Badge>
           </div>
 

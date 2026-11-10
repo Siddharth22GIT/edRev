@@ -6,6 +6,7 @@ import { can, TIER_INFO, TIER_ORDER, type Student, type StudentReadinessSummary,
 import { getStudent } from "@edurev/mock-data";
 import { Avatar } from "@/components/ui/avatar";
 import { AcademicRecordCard } from "@/components/students/academic-record-card";
+import { StudentSafeguardsPanel } from "@/components/students/student-safeguards-panel";
 import { TierBadge } from "@/components/ui/tier-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -124,8 +125,10 @@ export function StudentDetailScreen({ id }: { id: string }) {
   const trainingPct = readiness?.training.progressPercentage ?? student.trainingProgress;
   const cgpa = readiness?.academic?.cgpa ?? student.cgpa;
   const acadStatus = readiness?.academic?.cgpaStatus ?? "ELIGIBLE";
-  const loggedHours = readiness?.hours?.loggedHours ?? 12;
-  const allowedHours = readiness?.hours?.allowedHours ?? 20;
+  // Phase 4 (D10): planned hours this week vs the cap, from the safeguards engine (older record as a fallback)
+  const weekHours = readiness?.safeguardCheck.hours;
+  const loggedHours = weekHours?.usedHours ?? readiness?.hours?.loggedHours ?? 0;
+  const allowedHours = weekHours?.cap ?? readiness?.hours?.allowedHours ?? 10;
   const blackoutActive = readiness?.blackoutActive ?? false;
   const safeguardEligible = readiness?.safeguardCheck.eligible ?? true;
   const safeguardReasons = readiness?.safeguardCheck.reasons ?? [];
@@ -179,7 +182,7 @@ export function StudentDetailScreen({ id }: { id: string }) {
                 {safeguardEligible ? "✅ Ready for work" : `⛔ Blocked: ${safeguardReasons[0] ?? "a safeguard check failed"}`}
               </p>
               <p className="mt-0.5 text-xs text-[#666D7A]">
-                CGPA {cgpa} · {loggedHours}/{allowedHours}h this week · Training {trainingPct}%{blackoutActive ? " · Exam blackout active" : ""}
+                CGPA {cgpa} · {loggedHours}/{allowedHours}h planned this week · Training {trainingPct}%{blackoutActive ? " · Exam blackout active" : ""}
               </p>
             </div>
             <button
@@ -374,13 +377,23 @@ export function StudentDetailScreen({ id }: { id: string }) {
               <span className="ml-auto hidden text-xs font-semibold text-[#8C93A0] group-open:inline">Hide</span>
             </summary>
             <ul className="mt-3 space-y-2 text-xs leading-relaxed text-[#666D7A]">
-              <li>• Minimum CGPA 7.0 required for opportunity allocation.</li>
-              <li>• Max 20 hours/week hard limit (override authorized for Faculty Director & Cell Coordinator).</li>
-              <li>• Exam blackout periods automatically block allocations.</li>
+              <li>• The official CGPA must be recorded and meet the required minimum (default 7.0).</li>
+              <li>• Planned work must fit the weekly hour cap ({allowedHours} h now); outside paid work counts too.</li>
+              <li>• Exam blackouts, and the days just before them, block new allocations.</li>
+              <li>• Projects at once are limited by tier; repeated overdue work pauses new allocations for a while.</li>
+              <li>
+                • Full list, what unlocks each rule and who can help:{" "}
+                <Link className="font-bold text-[#3978B8] hover:underline" href={user?.role === "STUDENT" ? "/safeguards" : "#safeguards"}>
+                  {user?.role === "STUDENT" ? "My safeguards" : "Safeguards panel"}
+                </Link>
+              </li>
             </ul>
           </details>
         </div>
       </div>
+
+      {/* Phase 4: rules, overrides, attendance and compliance (staff; students use My safeguards) */}
+      {user?.role !== "STUDENT" && <StudentSafeguardsPanel academic={readiness?.academic ?? null} onChanged={loadReadinessData} studentId={student.id} />}
     </div>
   );
 }

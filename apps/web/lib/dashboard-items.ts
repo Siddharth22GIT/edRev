@@ -1,4 +1,4 @@
-import { tierRankOf, type Allocation, type BlackoutPeriod, type Opportunity, type Tier } from "@edurev/types";
+import { tierRankOf, type Allocation, type BlackoutPeriod, type Opportunity, type SlaView, type Tier } from "@edurev/types";
 import { formatDate } from "@/lib/format";
 
 /**
@@ -8,7 +8,7 @@ import { formatDate } from "@/lib/format";
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
-/** A project is "at risk" in its last 48 hours (until Phase 4 brings milestones and the SLA engine). */
+/** Fallback only: without the server's SLA view, a project is "at risk" in its last 48 hours. Phase 4 (G9) uses `allocation.sla`. */
 export const AT_RISK_HOURS = 48;
 /** "Deadline soon" window for projects; bidding closures use the shorter at-risk window. */
 export const SOON_DAYS = 7;
@@ -53,7 +53,8 @@ export function relativeDue(value: string, now = Date.now(), verb = "due"): stri
 /** One piece of allocated work for the signed-in student, with the deadline that counts (D6). */
 export interface ProjectItem {
   opportunity: Opportunity;
-  allocation: Allocation | null;
+  /** Phase 4: the API adds the computed SLA (`sla`) to each allocation. */
+  allocation: (Allocation & { sla?: SlaView }) | null;
   /** The agreed deadline (allocation `slaDeadline`), or the client's due date when there is none. */
   dueAt: string;
 }
@@ -69,6 +70,32 @@ export function dueState(dueAt: string, now = Date.now()): DueState {
   return "later";
 }
 
+/**
+ * G9: a project's state from the server's SLA engine (milestones, kick-off, idle days, pauses, submissions),
+ * falling back to the time-based `dueState` for allocations without one. Paused or submitted work isn't urgent
+ * for the student, so it counts as "later".
+ */
+export function projectDueState(item: ProjectItem, now = Date.now()): DueState {
+  const sla = item.allocation?.sla;
+  if (!sla) return dueState(item.dueAt, now);
+  switch (sla.state) {
+    case "OVERDUE":
+      return "overdue";
+    case "AT_RISK":
+      return "at-risk";
+    case "PAUSED":
+    case "SUBMITTED":
+    case "COMPLETED_ON_TIME":
+    case "COMPLETED_LATE":
+    case "CANCELLED":
+      return "later";
+    default: {
+      const at = toInstant(item.dueAt);
+      return at !== null && at - now <= SOON_DAYS * DAY ? "soon" : "later";
+    }
+  }
+}
+
 export const DUE_LABELS: Record<DueState, string> = { overdue: "Overdue", "at-risk": "At risk", soon: "Due soon", later: "On track" };
 
 /** Opportunities allocated to this student, before reading their allocation records. */
@@ -77,11 +104,11 @@ export function allocatedTo(opportunities: Opportunity[], studentId: string): Op
 }
 
 /** Keeps work that is still in progress (delivered or cancelled allocations drop out) and sorts by deadline. */
-export function activeProjects(opportunities: Opportunity[], allocations: (Allocation | null)[]): ProjectItem[] {
+export function activeProjects(opportunities: Opportunity[], allocations: ((Allocation & { sla?: SlaView }) | null)[]): ProjectItem[] {
   return opportunities
     .map((opportunity, i) => {
       const allocation = allocations[i] ?? null;
-      return { opportunity, allocation, dueAt: allocation?.slaDeadline || opportunity.deadline };
+      return { opportunity, allocation, dueAt: allocation?.sla?.dueAt || allocation?.slaDeadline || opportunity.deadline };
     })
     .filter((item) => !item.allocation || (item.allocation.status !== "COMPLETED" && item.allocation.status !== "CANCELLED"))
     .sort((a, b) => (toInstant(a.dueAt) ?? Infinity) - (toInstant(b.dueAt) ?? Infinity));
@@ -135,7 +162,7 @@ export function deadlinesFor(projects: ProjectItem[], open: Opportunity[], black
       label: p.opportunity.project,
       at: p.dueAt,
       href: `/opportunities/${p.opportunity.id}`,
-      state: dueState(p.dueAt, now),
+      state: projectDueState(p, now),
     })),
     ...open
       .filter((o) => o.bidsCloseAt)
@@ -195,15 +222,16 @@ export function pickNotice(candidates: Notice[]): { top: Notice | null; more: nu
 export function studentNotices(projects: ProjectItem[], open: Opportunity[], blackouts: BlackoutPeriod[], now = Date.now()): Notice[] {
   const notices: Notice[] = [];
   for (const p of projects) {
-    const state = dueState(p.dueAt, now);
+    const state = projectDueState(p, now);
     if (state === "later") continue;
+    const why = state === "at-risk" && p.allocation?.sla?.reasons.length ? ` ${p.allocation.sla.reasons[0]}` : "";
     notices.push({
       id: `project-${p.opportunity.id}`,
       level: state,
       text:
         state === "overdue"
           ? `“${p.opportunity.project}” is ${relativeDue(p.dueAt, now)}. Deliver it or ask your coordinator about the deadline.`
-          : `“${p.opportunity.project}” is ${relativeDue(p.dueAt, now)} (${formatDate(p.dueAt)}).`,
+          : `“${p.opportunity.project}” is ${relativeDue(p.dueAt, now)} (${formatDate(p.dueAt)}).${why}`,
       href: `/opportunities/${p.opportunity.id}`,
       cta: "Open project",
       at: p.dueAt,

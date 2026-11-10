@@ -5,13 +5,14 @@ export function ProgressBar({
 }: {
   value: number;
   label?: string;
-  tone?: "orange" | "blue" | "emerald";
+  tone?: "orange" | "blue" | "emerald" | "red";
 }) {
   const safeValue = Math.min(100, Math.max(0, value));
   const toneClasses = {
     orange: "bg-[#F2A65A]",
     blue: "bg-[#3978B8]",
     emerald: "bg-emerald-600",
+    red: "bg-rose-600",
   };
 
   return (

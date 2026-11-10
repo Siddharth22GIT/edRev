@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   nextTierOf,
+  skillMatch,
   TIER_INFO,
   type Allocation,
   type BlackoutPeriod,
@@ -23,6 +24,8 @@ import { TabCard } from "@/components/ui/tab-card";
 import { TierBadge } from "@/components/ui/tier-badge";
 import { currentStage, JourneyStepper, MountainProgress } from "@/components/student/journey";
 import { ProfileCompletenessCard } from "@/components/profile/profile-completeness-card";
+import { MyWeekCard } from "@/components/hours/my-week-card";
+import { SlaChip } from "@/components/safeguards/sla-chip";
 import {
   IconAlertTriangle,
   IconArrowRight,
@@ -40,8 +43,8 @@ import {
   activeProjects,
   allocatedTo,
   deadlinesFor,
-  dueState,
   opportunitiesFor,
+  projectDueState,
   relativeDue,
   studentNotices,
   type ProjectItem,
@@ -183,18 +186,21 @@ export function StudentDashboard() {
 
       <NextStep forMe={forMe} readiness={readiness} studentId={studentId} />
 
-      <div className="grid gap-x-6 gap-y-8 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-x-6 gap-y-8 md:grid-cols-2 xl:grid-cols-3">
         <CardBoundary title="My training">
           <TrainingCard readiness={readiness} studentId={studentId} />
         </CardBoundary>
         <CardBoundary title="Active projects">
           <ActiveProjectsCard projects={projects} readiness={readiness} />
         </CardBoundary>
+        <CardBoundary title="My week">
+          <MyWeekCard studentId={studentId} />
+        </CardBoundary>
         <CardBoundary title="Deadlines">
           <DeadlinesCard blackouts={blackouts} forMe={forMe} projects={projects} />
         </CardBoundary>
         <CardBoundary className="xl:col-span-2" title="Opportunities for you">
-          <OpportunitiesCard forMe={forMe} opportunities={opportunities} tierKnown={Boolean(student)} />
+          <OpportunitiesCard forMe={forMe} opportunities={opportunities} readiness={readiness} tierKnown={Boolean(student)} />
         </CardBoundary>
         <CardBoundary title="Earnings">
           <EarningsCard earnings={earnings} onLog={logEarning ? () => runQuickAction(logEarning, pathname, router.push) : undefined} />
@@ -248,7 +254,7 @@ function NextStep({ readiness, forMe, studentId }: { readiness: Resource<Student
   const blocked = data && !data.safeguardCheck.eligible;
 
   const step = blocked
-    ? { tone: "red" as const, title: "Action needed before you can be allocated work", detail: data!.safeguardCheck.reasons[0], href: `/students/${studentId}`, cta: "View my record" }
+    ? { tone: "red" as const, title: "Action needed before you can be allocated work", detail: data!.safeguardCheck.reasons[0], href: "/safeguards", cta: "What unlocks it" }
     : nextModule
       ? { tone: "orange" as const, title: `Continue “${nextModule.title.trim()}”`, detail: `${nextModule.completionPercentage}% complete · training builds your readiness`, href: `/students/${studentId}`, cta: "Open training" }
       : forMe[0]
@@ -333,10 +339,8 @@ function TrainingCard({ readiness, studentId }: { readiness: Resource<StudentRea
   );
 }
 
-function ActiveProjectsCard({ projects, readiness }: { projects: { items: ProjectItem[]; loading: boolean; error: string | null }; readiness: Resource<StudentReadinessSummary> }) {
-  const hours = readiness.data?.hours;
-  const hoursLeft = hours ? Math.max(0, hours.allowedHours - hours.loggedHours) : null;
-
+/** G9: each project shows the server's SLA state (milestones, kick-off, pauses…); weekly hours live in "My week". */
+function ActiveProjectsCard({ projects }: { projects: { items: ProjectItem[]; loading: boolean; error: string | null }; readiness: Resource<StudentReadinessSummary> }) {
   return (
     <TabCard
       empty={projects.items.length === 0}
@@ -356,7 +360,7 @@ function ActiveProjectsCard({ projects, readiness }: { projects: { items: Projec
       <CardList>
         {projects.items.slice(0, 4).map((p) => (
           <CardRow
-            aside={<DueChip state={dueState(p.dueAt)} />}
+            aside={p.allocation?.sla ? <SlaChip state={p.allocation.sla.state} title={p.allocation.sla.reasons.join(" ")} /> : <DueChip state={projectDueState(p)} />}
             href={`/opportunities/${p.opportunity.id}`}
             key={p.opportunity.id}
             meta={
@@ -368,11 +372,6 @@ function ActiveProjectsCard({ projects, readiness }: { projects: { items: Projec
           />
         ))}
       </CardList>
-      {hoursLeft !== null && (
-        <p className="mt-3 text-xs text-brand-text-muted">
-          Work hours left this week: <span className="nums font-bold text-brand-text">{hoursLeft}h</span> of <span className="nums">{hours!.allowedHours}h</span>
-        </p>
-      )}
     </TabCard>
   );
 }
@@ -424,7 +423,10 @@ function DeadlinesCard({ projects, forMe, blackouts }: { projects: { items: Proj
   );
 }
 
-function OpportunitiesCard({ opportunities, forMe, tierKnown }: { opportunities: Resource<Opportunity[]>; forMe: Opportunity[]; tierKnown: boolean }) {
+function OpportunitiesCard({ opportunities, forMe, tierKnown, readiness }: { opportunities: Resource<Opportunity[]>; forMe: Opportunity[]; tierKnown: boolean; readiness: Resource<StudentReadinessSummary> }) {
+  // F4: the real skill match ("2 of 3 skills"), from the student's skills and completed training
+  const skills = readiness.data?.student.skills;
+  const trained = (readiness.data?.training.modules ?? []).filter((m) => m.status === "COMPLETED").map((m) => m.title);
   return (
     <TabCard
       count={forMe.length}
@@ -451,6 +453,7 @@ function OpportunitiesCard({ opportunities, forMe, tierKnown }: { opportunities:
             key={o.id}
             meta={
               <>
+                {skills && o.skills.length > 0 && <span className="font-semibold text-brand-text">{skillMatch(skills, o.skills, trained).label} · </span>}
                 {o.company} · {o.bidsCloseAt ? <>Bids close <span className="nums">{formatDate(o.bidsCloseAt)}</span></> : <>Client due <span className="nums">{formatDate(o.deadline)}</span></>}
               </>
             }

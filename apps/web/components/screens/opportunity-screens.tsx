@@ -14,6 +14,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { BidDesk } from "@/components/opportunities/bid-desk";
+import { EligibilityCard } from "@/components/opportunities/eligibility-card";
+import { ProjectPanel } from "@/components/opportunities/project-panel";
 import { useApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useQuickAction } from "@/lib/quick-actions";
@@ -430,22 +432,23 @@ export function OpportunitiesScreen() {
 
 export function OpportunityDetailScreen({ id }: { id: string }) {
   const { apiFetch } = useApi();
+  const { user } = useAuth();
   const [opp, setOpp] = useState<Opportunity | null>(() => getOpportunity(id) || null);
   const [loading, setLoading] = useState(!opp);
 
+  // Demo data is only the first render: the live record always replaces it (status, allocation, deadlines)
   useEffect(() => {
-    if (!opp) {
-      apiFetch(`/opportunities/${id}`)
-        .then((res) => res.json())
-        .then((json) => {
-          if (json?.data) {
-            setOpp(json.data);
-          }
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false));
-    }
-  }, [id, opp]);
+    apiFetch(`/opportunities/${id}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (json?.data) {
+          setOpp(json.data);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const scrollToBidDesk = () => {
     const el = document.getElementById("bid-desk-section");
@@ -528,6 +531,9 @@ export function OpportunityDetailScreen({ id }: { id: string }) {
           </dl>
         </Card>
       </div>
+      {/* Phase 4: allocated (or cancelled) work shows its delivery panel; students see their eligibility before bidding */}
+      {(opp.status === "ALLOCATED" || opp.status === "CLOSED") && <ProjectPanel opportunity={opp} />}
+      {user?.role === "STUDENT" && (opp.status === "OPEN" || opp.status === "UNDER_REVIEW") && <EligibilityCard opportunity={opp} />}
       <BidDesk opportunity={opp} />
     </div>
   );

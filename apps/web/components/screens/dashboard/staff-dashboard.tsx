@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { can, type DashboardMetrics, type InboxItem, type Student } from "@edurev/types";
+import { can, DEFAULT_SAFEGUARD_LIMITS, type DashboardMetrics, type InboxItem, type SafeguardLimits, type Student } from "@edurev/types";
 import { Button } from "@/components/ui/button";
 import { CardBoundary } from "@/components/ui/card-boundary";
 import { firstName, greetingFor, HeroBanner } from "@/components/ui/hero-banner";
@@ -25,6 +25,7 @@ import { useResource } from "@/lib/use-resource";
 import { useWorkQueue } from "@/lib/work-queue";
 import { CardList, CardRow, Figure } from "./card-parts";
 import { InboxCard } from "./inbox-card";
+import { AtRiskProjectsCard, HelpRequestsCard, WaitingChip } from "./phase4-cards";
 import { NoticeLine } from "./notice-line";
 import { QuickLinks } from "./quick-links";
 
@@ -47,6 +48,8 @@ export function StaffDashboard() {
   const supervises = can(role, "STUDENT_SUPERVISE");
   const students = useResource<Student[]>(supervises ? "/students" : null);
   const checkIns = (students.data ?? []).filter((s) => s.status === "ACTIVE" && s.trainingProgress < 60);
+  // G11: staff service levels (working days) come from the safeguard limits
+  const limits = useResource<SafeguardLimits>("/safeguards/limits").data ?? DEFAULT_SAFEGUARD_LIMITS;
 
   const actions = quickActionsFor(role);
   const messageAction = actions.find((a) => a.id === "new-message");
@@ -75,7 +78,7 @@ export function StaffDashboard() {
       {can(role, "OPPORTUNITY_ALLOCATE") && <NoticeLine moreHref="/opportunities" notices={staffNotices(queue.reviewOpportunities)} />}
       <QuickLinks />
 
-      <div className="grid gap-x-6 gap-y-8 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-x-6 gap-y-8 md:grid-cols-2 xl:grid-cols-3">
         {can(role, "SIGNUP_REVIEW") && (
           <CardBoundary title="Sign-up requests">
             <TabCard
@@ -93,7 +96,7 @@ export function StaffDashboard() {
               <CardList>
                 {queue.signupRequests.slice(0, 4).map((r) => (
                   <CardRow
-                    aside={<span className="nums text-brand-text-muted">{timeAgo(r.requestedAt)}</span>}
+                    aside={<WaitingChip limitDays={limits.signupReviewDays} since={r.requestedAt} />}
                     href="/students#signup-requests"
                     key={r.userId}
                     meta={
@@ -126,7 +129,12 @@ export function StaffDashboard() {
               <CardList>
                 {queue.pendingEarnings.slice(0, 4).map((e) => (
                   <CardRow
-                    aside={<span className="nums font-bold text-brand-text">{formatCurrency(e.convertedAmount)}</span>}
+                    aside={
+                      <span className="flex flex-col items-end gap-0.5">
+                        <span className="nums font-bold text-brand-text">{formatCurrency(e.convertedAmount)}</span>
+                        <WaitingChip limitDays={limits.earningVerifyDays} since={e.createdAt} />
+                      </span>
+                    }
                     href="/earnings?tab=verify"
                     key={e.id}
                     meta={
@@ -139,6 +147,18 @@ export function StaffDashboard() {
                 ))}
               </CardList>
             </TabCard>
+          </CardBoundary>
+        )}
+
+        {can(role, "SLA_BOARD_VIEW") && (
+          <CardBoundary title="At-risk projects">
+            <AtRiskProjectsCard />
+          </CardBoundary>
+        )}
+
+        {can(role, "HELP_RESOLVE") && (
+          <CardBoundary title="Help requests">
+            <HelpRequestsCard replyDays={limits.helpReplyWorkingDays} />
           </CardBoundary>
         )}
 

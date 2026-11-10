@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { RequirePermission } from "@/components/ui/require-permission";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SafeguardLimitsCard } from "@/components/settings/safeguard-limits-card";
 import { useApi } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 
@@ -38,6 +39,10 @@ export function SettingsScreen() {
         title="Managed by your administrator"
       >
         <InstitutionalSettingsForm />
+        {/* Phase 4 (G1): safeguard limits */}
+        <div className="mt-7">
+          <SafeguardLimitsCard />
+        </div>
       </RequirePermission>
     </div>
   );
