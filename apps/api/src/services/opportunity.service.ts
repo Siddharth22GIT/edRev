@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { can, tierRankOf, TIER_INFO, type Allocation, type Bid, type Opportunity, type Student, type Tier, type User } from "@edurev/types";
+import { can, milestonesFrom, tierRankOf, TIER_INFO, type Allocation, type Bid, type Opportunity, type Student, type Tier, type User } from "@edurev/types";
 import {
   allocations as mockAllocations,
   bids as mockBids,
@@ -13,6 +13,7 @@ import { AllocationModel, BidModel, OpportunityModel, StudentModel } from "../mo
 import { deadlineInstant, getInstitutionTimeZone } from "../utils/time.js";
 import { sendMessageService } from "./messages.service.js";
 import { checkSafeguardsService } from "./safeguard.service.js";
+import { logSlaEvent } from "./sla.service.js";
 
 /**
  * U11: records saved before Phase 2 may carry stray spaces in their names ("Hcl Amplified "). New records are
@@ -481,6 +482,9 @@ export async function allocateOpportunityService(opportunityId: string, studentI
     slaDeadline: deadline.toISOString(),
     slaStatus: "ACTIVE",
     ...(direct ? { directAssignmentReason: options.reason!.trim() } : {}),
+    // Phase 4 (F2a): one milestone per deliverable; the original deadline is kept when extensions move it
+    milestones: milestonesFrom(opp.deliverables),
+    originalSlaDeadline: deadline.toISOString(),
   };
 
   let rejected: string[];
@@ -535,6 +539,7 @@ export async function allocateOpportunityService(opportunityId: string, studentI
     }
   }
 
+  await recordSlaEvent({ opportunityId, studentId, type: "ALLOCATED", by: actor.name, note: direct ? `Direct assignment: ${options.reason!.trim()}` : undefined });
   await notifyStudents(
     actor,
     rejected,
@@ -568,13 +573,15 @@ export async function reassignAllocationService(opportunityId: string, toStudent
   const now = new Date();
   const deadline = await agreedDeadline(opp, options.slaDeadline, now);
   const entry = { fromStudentId, toStudentId, by: actor.name, at: now.toISOString(), reason: reason.trim() };
-  const changes = { studentId: toStudentId, allocatedBy: actor.name, allocatedAt: now.toISOString(), status: "ALLOCATED" as const, slaStartAt: now.toISOString(), slaDeadline: deadline.toISOString(), slaStatus: "ACTIVE" as const };
+  const changes = { studentId: toStudentId, allocatedBy: actor.name, allocatedAt: now.toISOString(), status: "ALLOCATED" as const, slaStartAt: now.toISOString(), slaDeadline: deadline.toISOString(), slaStatus: "ACTIVE" as const, milestones: milestonesFrom(opp.deliverables), originalSlaDeadline: deadline.toISOString() };
+  // Phase 4: the new student starts fresh (the previous student's progress stays on the timeline, G12)
+  const fresh = ["kickoffAt", "submissions", "extensions", "pauses", "handBack", "lastHoursAt"] as const;
 
   let saved: Allocation;
   if (isDbConnected()) {
     const updated = await AllocationModel.findOneAndUpdate(
       { opportunityId, studentId: fromStudentId, status: { $nin: ["COMPLETED", "CANCELLED"] } },
-      { $set: changes, $push: { reassignments: entry } },
+      { $set: changes, $push: { reassignments: entry }, $unset: Object.fromEntries(fresh.map((f) => [f, 1])) },
       { new: true }
     ).lean();
     if (!updated) throw httpError("The allocation changed in the meantime. Refresh and try again.", 409);
@@ -585,6 +592,7 @@ export async function reassignAllocationService(opportunityId: string, toStudent
   } else {
     const record = mockAllocations.find((a) => a.opportunityId === opportunityId)!;
     Object.assign(record, changes, { reassignments: [...(record.reassignments ?? []), entry] });
+    for (const f of fresh) delete record[f];
     saved = record;
     const mockOpp = mockGetOpportunity(opportunityId);
     if (mockOpp) mockOpp.allocatedStudentId = toStudentId;
@@ -594,6 +602,7 @@ export async function reassignAllocationService(opportunityId: string, toStudent
     }
   }
 
+  await recordSlaEvent({ opportunityId, studentId: toStudentId, type: "REASSIGNED", by: actor.name, note: `From ${fromStudentId}: ${reason.trim()}` });
   await notifyStudents(
     actor,
     [fromStudentId],
@@ -601,6 +610,15 @@ export async function reassignAllocationService(opportunityId: string, toStudent
     `The work "${opp.title}" has been moved to another student by ${actor.name}. If you have questions, reply to this message.`
   );
   return saved;
+}
+
+/** Best effort: the timeline never blocks an allocation. */
+async function recordSlaEvent(event: Parameters<typeof logSlaEvent>[0]): Promise<void> {
+  try {
+    await logSlaEvent(event);
+  } catch (error) {
+    console.warn(`[bids] could not log ${event.type}: ${(error as Error).message}`);
+  }
 }
 
 function stripMongoFields<T>(obj: any): T {

@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { presentAllocation, slaViewOf } from "../services/sla.service.js";
 import {
   allocateOpportunityService,
   createOpportunityService,
@@ -103,7 +104,8 @@ export async function getAllocationForOpportunityHandler(req: Request, res: Resp
   try {
     const id = getParam(req.params.id);
     const allocation = await getAllocationForOpportunityService(id);
-    res.json({ data: allocation });
+    // Phase 4 (G9): plus the computed SLA; other students don't see submissions, feedback or extensions
+    res.json({ data: allocation ? presentAllocation(allocation, req.user!, await slaViewOf(allocation)) : allocation });
   } catch (err: any) {
     errorResponse(res, err.message || "Error fetching allocation.", 500);
   }

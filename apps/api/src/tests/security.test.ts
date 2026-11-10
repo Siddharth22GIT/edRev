@@ -1,3 +1,4 @@
+import { deleteHourEntries } from "../services/hours.service.js";
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert";
 import type { Server } from "node:http";
@@ -248,13 +249,16 @@ describe("Security Suite (Phase 1)", () => {
   });
 
   describe("S12 hour log", () => {
-    it("S12: hours are validated and the response says they aren't stored yet", async () => {
+    it("S12 / G2: hours are validated, stored for the day, and unknown fields are not echoed back", async () => {
       assert.strictEqual((await call("POST", "/hours", { as: "studentA", body: { hours: "lots" } })).status, 400);
       assert.strictEqual((await call("POST", "/hours", { as: "studentA", body: { hours: 30 } })).status, 400);
       const ok = await call("POST", "/hours", { as: "studentA", body: { hours: 2, role: "ADMINISTRATOR" } });
       assert.strictEqual(ok.status, 201);
       assert.deepStrictEqual(ok.json.data, { studentId: "stu-202", hours: 2 }, "unknown fields are not echoed back");
-      assert.match(ok.json.note, /not stored/);
+      assert.match(ok.json.note, /Saved 2 h/);
+      assert.strictEqual(ok.json.entry.minutes, 120);
+      assert.strictEqual(ok.json.entry.source, "MANUAL");
+      await deleteHourEntries([ok.json.entry.id]);
     });
   });
 });

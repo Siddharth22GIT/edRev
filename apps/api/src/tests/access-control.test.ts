@@ -1,3 +1,4 @@
+import { deleteHourEntries } from "../services/hours.service.js";
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert";
 import type { Server } from "node:http";
@@ -242,7 +243,10 @@ describe("Access Control Suite (all modules)", () => {
 
       assert.strictEqual((await call("POST", "/hours", { as: "analyst", body: { studentId: "stu-201", hours: 2 } })).status, 403);
       assert.strictEqual((await call("POST", "/hours", { as: "guild", body: { hours: 2 } })).status, 400);
-      assert.strictEqual((await call("POST", "/hours", { as: "guild", body: { studentId: "stu-201", hours: 2 } })).status, 201);
+      const supervised = await call("POST", "/hours", { as: "guild", body: { studentId: "stu-201", hours: 2 } });
+      assert.strictEqual(supervised.status, 201);
+      // G2: hours are stored now; remove what this test logged for the seeded students
+      await deleteHourEntries([own.json.entry.id, supervised.json.entry.id]);
     });
 
     it("authorizes hour-cap overrides from the token, not from a role in the request body", async () => {

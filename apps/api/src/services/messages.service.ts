@@ -357,3 +357,65 @@ export async function deleteConversationsBySubjectPrefix(prefix: string): Promis
   mem.messages = mem.messages.filter((m) => !ids.includes(m.conversationId));
   mem.reads = mem.reads.filter((r) => !ids.includes(r.conversationId));
 }
+
+/* ---------------- Phase 4: "Request help" threads (docs/modules/safeguards.md §6) ---------------- */
+
+/**
+ * G6: the only way a student *starts* a thread: a help request about a block. A private DIRECT thread owned by the
+ * staff member it is routed to, opened with the student's own message.
+ */
+export async function startHelpThreadService(student: Actor, staff: MessageParty, subject: string, body: string): Promise<Conversation> {
+  const sid = readerKeyOf(student);
+  const now = new Date().toISOString();
+  const doc: ConversationDocument = {
+    id: newId("cv"),
+    kind: "DIRECT",
+    subject: subject.slice(0, 120),
+    priority: "IMPORTANT",
+    allowReplies: true,
+    staff,
+    studentId: sid,
+    studentName: student.name,
+    recipientStudentIds: [sid],
+    recipientCount: 1,
+    createdAt: now,
+    lastMessageAt: now,
+    lastMessagePreview: preview(body),
+    lastSenderKey: sid,
+  };
+  await saveConversation(doc);
+  await insertMessage({ id: newId("msg"), conversationId: doc.id, sender: partyOf(student), body, createdAt: now });
+  await markRead(doc.id, sid, now);
+  return present(doc, student);
+}
+
+/** G6 escalation: hands a help thread to another staff member and leaves a note in it (both sides see it as new). */
+export async function handOverThreadService(conversationId: string, to: MessageParty, note: string, noteFrom: Actor): Promise<void> {
+  const doc = await findConversation(conversationId);
+  if (!doc) return;
+  await updateConversation(conversationId, { staff: to });
+  const now = new Date().toISOString();
+  await insertMessage({ id: newId("msg"), conversationId, sender: partyOf(noteFrom), body: note, createdAt: now });
+  await updateConversation(conversationId, { lastMessageAt: now, lastMessagePreview: preview(note), lastSenderKey: readerKeyOf(noteFrom) });
+}
+
+/** Adds a note from `from` to a thread without access checks (system notes such as "resolved"). */
+export async function appendSystemNoteService(conversationId: string, from: Actor, note: string): Promise<void> {
+  const doc = await findConversation(conversationId);
+  if (doc) await appendMessage(doc, from, note);
+}
+
+/** Test/cleanup helper: removes every DIRECT thread with these students (reminders, help threads, bid updates). */
+export async function deleteConversationsForStudents(studentIds: string[]): Promise<void> {
+  if (isDbConnected()) {
+    const ids = (await ConversationModel.find({ kind: "DIRECT", studentId: { $in: studentIds } }, { id: 1 }).lean<{ id: string }[]>()).map((c) => c.id);
+    await ChatMessageModel.deleteMany({ conversationId: { $in: ids } });
+    await ReadStateModel.deleteMany({ conversationId: { $in: ids } });
+    await ConversationModel.deleteMany({ id: { $in: ids } });
+    return;
+  }
+  const ids = mem.conversations.filter((c) => c.kind === "DIRECT" && c.studentId && studentIds.includes(c.studentId)).map((c) => c.id);
+  mem.conversations = mem.conversations.filter((c) => !ids.includes(c.id));
+  mem.messages = mem.messages.filter((m) => !ids.includes(m.conversationId));
+  mem.reads = mem.reads.filter((r) => !ids.includes(r.conversationId));
+}

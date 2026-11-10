@@ -1,3 +1,6 @@
+import type { AllocationSlaFields } from "./sla";
+import type { SafeguardLimits, SafeguardRuleId, SafeguardRuleResult, WeeklyHoursSummary } from "./safeguards";
+
 export type Role = "STUDENT" | "BID_DESK_ANALYST" | "PROPOSAL_EDITOR" | "GUILD_LEAD" | "CELL_COORDINATOR" | "FACULTY_DIRECTOR" | "PLACEMENT_OFFICE" | "DEAN" | "ADMINISTRATOR";
 export type OpportunityStatus = "OPEN" | "UNDER_REVIEW" | "ALLOCATED" | "CLOSED";
 export type StudentStatus = "ACTIVE" | "INACTIVE";
@@ -14,7 +17,7 @@ export interface StudentProfileUpdate { bio?: string; phone?: string; location?:
 export interface TierSummary { studentId: string; currentTier: Tier; nextTier: Tier | null; progressToNextTier: number; requirements: { label: string; completed: boolean }[]; completedTraining: number; }
 export interface TrainingModule { id: string; title: string; description: string; status: "COMPLETED" | "IN_PROGRESS" | "NOT_STARTED"; completionPercentage: number; }
 export interface Bid { id: string; opportunityId: string; studentId: string; proposedAmount: number; estimatedCompletionTime: string; message: string; relevantSkills: string; proposalPdfUrl?: string; proposalPdfName?: string; status: BidStatus; createdAt: string; /** E5: when the student last edited or withdrew the bid. */ editedAt?: string; withdrawnAt?: string; }
-export interface Allocation { opportunityId: string; studentId: string; allocatedBy: string; allocatedAt: string; status: "ALLOCATED" | "ACTIVE" | "COMPLETED" | "CANCELLED"; slaStartAt?: string; slaDeadline?: string; slaStatus?: SlaStatus; deliveredAt?: string; deliveryConfirmedBy?: string; onTime?: boolean; /** E1b: every change of student, oldest first. */ reassignments?: AllocationReassignment[]; /** D7: set when an Administrator assigned a student who didn't bid. */ directAssignmentReason?: string; }
+export interface Allocation extends AllocationSlaFields { opportunityId: string; studentId: string; allocatedBy: string; allocatedAt: string; status: "ALLOCATED" | "ACTIVE" | "COMPLETED" | "CANCELLED"; slaStartAt?: string; slaDeadline?: string; slaStatus?: SlaStatus; deliveredAt?: string; deliveryConfirmedBy?: string; onTime?: boolean; /** E1b: every change of student, oldest first. */ reassignments?: AllocationReassignment[]; /** D7: set when an Administrator assigned a student who didn't bid. */ directAssignmentReason?: string; }
 /** E1b: one reassignment of allocated work to a different student (who, when and why). */
 export interface AllocationReassignment { fromStudentId: string; toStudentId: string; by: string; at: string; reason: string; }
 /** A student's delivery history: the evidence for the top tier. */
@@ -24,16 +27,16 @@ export interface DeliveryRecord { studentId: string; completed: number; onTime: 
 export interface EarningsEntry { id: string; studentId: string; platformName: string; projectTitle?: string; originalAmount: number; originalCurrency: string; exchangeRate: number; convertedAmount: number; convertedCurrency: string; earningDate: string; verificationStatus: VerificationStatus; evidence: string; screenshotUrl?: string; evidenceStatus: "AVAILABLE" | "MISSING"; createdAt: string; verifiedBy?: string; verifiedAt?: string; rejectionReason?: string; }
 export interface EarningsSummary { studentId?: string; totalSubmitted: number; totalVerified: number; totalPending: number; totalRejected: number; count: number; verifiedCount: number; pendingCount: number; rejectedCount: number; currency: string; }
 export interface PlatformAccount { id: string; studentId: string; platform: string; accountIdentifier: string; accountStatus: "ACTIVE" | "INACTIVE"; verificationStatus: VerificationStatus; }
-export interface AcademicSnapshot { studentId: string; cgpa: number; requiredCgpa: number; cgpaStatus: "ELIGIBLE" | "RESTRICTED"; complianceStatus: ComplianceStatus; }
+export interface AcademicSnapshot { studentId: string; cgpa: number; requiredCgpa: number; cgpaStatus: "ELIGIBLE" | "RESTRICTED"; complianceStatus: ComplianceStatus; /** G3: attendance % (unset = not recorded, never counted as a pass). */ attendancePercent?: number; /** G3: active backlogs (failed courses not yet cleared). */ activeBacklogs?: number; complianceNote?: string; /** When a Faculty Director last recorded the official CGPA (records with a CGPA above 0 count as recorded too). */ cgpaRecordedAt?: string; complianceUpdatedBy?: string; complianceUpdatedAt?: string; }
 export interface HourLog { studentId: string; period: string; allowedHours: number; loggedHours: number; remainingHours: number; status: HourStatus; overridden?: boolean; overrideReason?: string; overriddenBy?: string; overriddenAt?: string; }
-export interface BlackoutPeriod { id: string; title: string; startDate: string; endDate: string; }
-export interface SafeguardCheck { studentId: string; tierEligible: boolean; cgpaEligible: boolean; hourEligible: boolean; blackoutEligible: boolean; complianceEligible: boolean; eligible: boolean; reasons: string[]; }
+export interface BlackoutPeriod { id: string; title: string; startDate: string; endDate: string; /** G4: only these programmes (empty/unset = everyone). */ programs?: string[]; /** G4: only these years of study (empty/unset = everyone). */ years?: number[]; createdBy?: string; }
+export interface SafeguardCheck { studentId: string; tierEligible: boolean; cgpaEligible: boolean; hourEligible: boolean; blackoutEligible: boolean; complianceEligible: boolean; eligible: boolean; reasons: string[]; /** Phase 4: every rule with its outcome, what unlocks it and who can help (most important first). */ rules?: SafeguardRuleResult[]; /** Phase 4 (D10): this week's hours as the engine sees them. */ hours?: WeeklyHoursSummary; opportunityId?: string; checkedAt?: string; /** Warnings that never block (e.g. an exam inside the project dates). */ warnings?: string[]; }
 export interface StudentReadinessSummary { student: Student; academic: AcademicSnapshot | null; training: { modules: TrainingModule[]; completedCount: number; totalCount: number; progressPercentage: number; }; hours: HourLog | null; blackoutActive: boolean; safeguardCheck: SafeguardCheck; }
 export interface DashboardMetrics { activeStudents: number; opportunityPipeline: number; monthlyEarnings: number; completionRate: number; totalBids: number; allocations: number; verifiedEarnings: number; complianceRate: number; }
 export interface AnalyticsSnapshot { placementRate: number; proposalWinRate: number; averageResponseHours: number | null; learnerSatisfaction: number | null; weeklyActivity: { label: string; value: number; date?: string }[]; studentsByTier: { tier: Tier; count: number }[]; }
 export interface Proposal { id: string; title: string; studentName: string; opportunityId: string; author: string; status: "DRAFT" | "IN_REVIEW" | "APPROVED" | "SUBMITTED"; reviewStatus: "PENDING" | "APPROVED"; version: number; submittedAt: string | null; value: number; }
-export interface Safeguard { id: string; name: string; description: string; status: "healthy" | "attention" | "blocked"; owner: string; lastCheckedAt: string; }
-export interface SettingsSummary { organizationName: string; notificationEmail: string; weeklyDigestEnabled: boolean; timezone: string; signupEnabled?: boolean; allowedSignupDomains?: string[]; }
+export interface Safeguard { id: string; name: string; description: string; status: "healthy" | "attention" | "blocked"; owner: string; lastCheckedAt: string; /** G7: the rule behind this card and how many active students it blocks / warns right now. */ rule?: SafeguardRuleId; hard?: boolean; blockedCount?: number; warnedCount?: number; checkedStudents?: number; }
+export interface SettingsSummary { organizationName: string; notificationEmail: string; weeklyDigestEnabled: boolean; timezone: string; signupEnabled?: boolean; allowedSignupDomains?: string[]; /** G1: safeguard limits (defaults: DEFAULT_SAFEGUARD_LIMITS). */ safeguardLimits?: SafeguardLimits; }
 /** Personal app preferences, saved per account. */
 export interface UserPreferences { celebrations: boolean; reduceMotion: boolean; showBadges: boolean; /** U3: the workspace icon rail is collapsed. Optional and not in the defaults, so older responses keep their shape. */ navCollapsed?: boolean; }
 export const DEFAULT_USER_PREFERENCES: UserPreferences = { celebrations: true, reduceMotion: false, showBadges: true };
@@ -97,4 +100,7 @@ export interface MessageDraft { audience: MessageAudience; subject: string; body
 
 export * from "./permissions";
 export * from "./tiers";
+export * from "./safeguards";
+export * from "./sla";
+export * from "./match";
 

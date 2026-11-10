@@ -296,7 +296,7 @@ export async function upsertAcademicRecordService(studentId: string, cgpa: numbe
     const saved = await AcademicSnapshotModel.findOneAndUpdate(
       { studentId },
       {
-        $set: { cgpa, requiredCgpa: required, cgpaStatus: cgpa >= required ? "ELIGIBLE" : "RESTRICTED" },
+        $set: { cgpa, requiredCgpa: required, cgpaStatus: cgpa >= required ? "ELIGIBLE" : "RESTRICTED", cgpaRecordedAt: new Date().toISOString() },
         $setOnInsert: { studentId, complianceStatus: "COMPLIANT" },
       },
       { new: true, upsert: true }
@@ -318,7 +318,7 @@ export async function upsertAcademicRecordService(studentId: string, cgpa: numbe
     record = { studentId, cgpa, requiredCgpa: required, cgpaStatus: "RESTRICTED", complianceStatus: "COMPLIANT" };
     mockAcademicSnapshots.push(record);
   }
-  Object.assign(record, { cgpa, requiredCgpa: required, cgpaStatus: cgpa >= required ? "ELIGIBLE" : "RESTRICTED" });
+  Object.assign(record, { cgpa, requiredCgpa: required, cgpaStatus: cgpa >= required ? "ELIGIBLE" : "RESTRICTED", cgpaRecordedAt: new Date().toISOString() });
   student.cgpa = cgpa;
   return record;
 }

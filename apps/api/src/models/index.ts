@@ -1,5 +1,10 @@
 import mongoose, { Schema } from "mongoose";
 import type {
+  HelpRequest,
+  HourEntry,
+  SafeguardOverride,
+  SlaEvent,
+  WeeklyCheckin,
   AcademicSnapshot,
   Allocation,
   Bid,
@@ -146,6 +151,46 @@ const allocationSchema = new Schema<AllocationDocument>(
       },
     ],
     directAssignmentReason: { type: String },
+    // Phase 4 (F2, G10): milestones, submissions, extensions, pauses, cancellation, hand-back. All optional.
+    milestones: [{ _id: false, id: { type: String, required: true }, title: { type: String, required: true }, doneAt: { type: String } }],
+    kickoffAt: { type: String },
+    submissions: [
+      {
+        _id: false,
+        id: { type: String, required: true },
+        round: { type: Number, required: true },
+        link: { type: String },
+        fileName: { type: String },
+        fileUrl: { type: String },
+        note: { type: String },
+        submittedAt: { type: String, required: true },
+        decision: { type: String, enum: ["ACCEPTED", "REVISION_REQUESTED"] },
+        decidedBy: { type: String },
+        decidedAt: { type: String },
+        feedback: { type: String },
+      },
+    ],
+    extensions: [
+      {
+        _id: false,
+        id: { type: String, required: true },
+        days: { type: Number, required: true },
+        reason: { type: String, required: true },
+        requestedAt: { type: String, required: true },
+        status: { type: String, enum: ["PENDING", "APPROVED", "REJECTED"], required: true },
+        decidedBy: { type: String },
+        decidedAt: { type: String },
+        note: { type: String },
+        newDeadline: { type: String },
+      },
+    ],
+    pauses: [{ _id: false, from: { type: String, required: true }, to: { type: String }, reason: { type: String, required: true }, by: { type: String, required: true } }],
+    originalSlaDeadline: { type: String },
+    cancelledAt: { type: String },
+    cancelledBy: { type: String },
+    cancelReason: { type: String },
+    handBack: { _id: false, requestedAt: { type: String }, reason: { type: String } },
+    lastHoursAt: { type: String },
   },
   { timestamps: true }
 );
@@ -216,6 +261,13 @@ const academicSnapshotSchema = new Schema<AcademicSnapshot>(
     requiredCgpa: { type: Number, required: true },
     cgpaStatus: { type: String, enum: ["ELIGIBLE", "RESTRICTED"], required: true },
     complianceStatus: { type: String, enum: ["COMPLIANT", "WARNING", "NON_COMPLIANT"], required: true },
+    // G3: recorded by a Faculty Director. Unset = not recorded (never counted as a pass).
+    attendancePercent: { type: Number },
+    activeBacklogs: { type: Number },
+    complianceNote: { type: String },
+    cgpaRecordedAt: { type: String },
+    complianceUpdatedBy: { type: String },
+    complianceUpdatedAt: { type: String },
   },
   { timestamps: true }
 );
@@ -244,6 +296,10 @@ const blackoutPeriodSchema = new Schema<BlackoutPeriod>(
     title: { type: String, required: true },
     startDate: { type: String, required: true },
     endDate: { type: String, required: true },
+    // G4: limit a blackout to some programmes / years (empty = everyone)
+    programs: [{ type: String }],
+    years: [{ type: Number }],
+    createdBy: { type: String },
   },
   { timestamps: true }
 );
@@ -292,6 +348,8 @@ const settingsSchema = new Schema<SettingsDocument>(
     timezone: { type: String, required: true },
     signupEnabled: { type: Boolean },
     allowedSignupDomains: [{ type: String }],
+    // G1: safeguard limits edited by an Administrator (validated in the service)
+    safeguardLimits: { type: Schema.Types.Mixed },
   },
   { timestamps: true }
 );
@@ -449,3 +507,127 @@ export const ReadStateModel = mongoose.models.ReadState || mongoose.model<ReadSt
 
 export const UserModel = mongoose.models.User || mongoose.model<User>("User", userSchema);
 
+
+
+// ---------------- Phase 4: safeguards, hours and SLA ----------------
+// Docs: docs/modules/safeguards.md and docs/modules/sla-and-delivery.md
+
+/** D10: recorded work time (Start/Stop timer or typed in). */
+const hourEntrySchema = new Schema<HourEntry>(
+  {
+    id: { type: String, required: true, unique: true },
+    studentId: { type: String, required: true, index: true },
+    opportunityId: { type: String },
+    date: { type: String, required: true },
+    minutes: { type: Number, required: true, default: 0 },
+    source: { type: String, enum: ["TIMER", "MANUAL"], required: true },
+    startedAt: { type: String },
+    endedAt: { type: String },
+    note: { type: String },
+    capped: { type: Boolean },
+    createdBy: { type: String, required: true },
+    createdAt: { type: String, required: true },
+  },
+  { timestamps: false }
+);
+// HOURS-02: at most one running timer per student. A running timer is the only entry with `running: true`.
+hourEntrySchema.add({ running: { type: Boolean } });
+hourEntrySchema.index({ studentId: 1, running: 1 }, { unique: true, partialFilterExpression: { running: true }, name: "one_running_timer" });
+
+/** D10: the Monday check-in (one per student per week). */
+const weeklyCheckinSchema = new Schema<WeeklyCheckin>(
+  {
+    id: { type: String, required: true, unique: true },
+    studentId: { type: String, required: true },
+    weekStart: { type: String, required: true },
+    projects: [{ _id: false, opportunityId: { type: String }, title: { type: String }, plannedHours: { type: Number }, actualHours: { type: Number } }],
+    otherPaidHours: { type: Number, default: 0 },
+    totalHours: { type: Number, required: true },
+    cap: { type: Number, required: true },
+    overCap: { type: Boolean, required: true },
+    note: { type: String },
+    source: { type: String, enum: ["STUDENT", "AUTO"], required: true },
+    submittedAt: { type: String, required: true },
+    submittedBy: { type: String, required: true },
+  },
+  { timestamps: false }
+);
+weeklyCheckinSchema.index({ studentId: 1, weekStart: 1 }, { unique: true });
+
+/** G5: soft-rule overrides (logged, with an expiry). */
+const safeguardOverrideSchema = new Schema<SafeguardOverride>(
+  {
+    id: { type: String, required: true, unique: true },
+    studentId: { type: String, required: true, index: true },
+    rule: { type: String, required: true },
+    reason: { type: String, required: true },
+    createdBy: { type: String, required: true },
+    createdAt: { type: String, required: true },
+    expiresAt: { type: String, required: true },
+    revokedAt: { type: String },
+    revokedBy: { type: String },
+  },
+  { timestamps: false }
+);
+
+/** G12: project timeline. `dedupeKey` (reminders only) makes "never send the same reminder twice" a database guarantee. */
+export interface SlaEventDocument extends SlaEvent {
+  dedupeKey?: string;
+}
+const slaEventSchema = new Schema<SlaEventDocument>(
+  {
+    id: { type: String, required: true, unique: true },
+    opportunityId: { type: String, required: true, index: true },
+    studentId: { type: String, required: true },
+    type: { type: String, required: true },
+    at: { type: String, required: true },
+    by: { type: String, required: true },
+    note: { type: String },
+    dedupeKey: { type: String, unique: true, sparse: true },
+  },
+  { timestamps: false }
+);
+
+/** G6: "Request help" from a blocked student. */
+const helpRequestSchema = new Schema<HelpRequest>(
+  {
+    id: { type: String, required: true, unique: true },
+    studentId: { type: String, required: true, index: true },
+    studentName: { type: String, required: true },
+    rule: { type: String, required: true },
+    reason: { type: String, required: true },
+    opportunityId: { type: String },
+    conversationId: { type: String, required: true },
+    routedRole: { type: String, required: true },
+    routedUserId: { type: String, required: true },
+    routedUserName: { type: String, required: true },
+    escalationLevel: { type: Number, default: 0 },
+    status: { type: String, enum: ["OPEN", "RESOLVED"], required: true },
+    createdAt: { type: String, required: true },
+    escalatedAt: { type: String },
+    resolvedAt: { type: String },
+    resolvedBy: { type: String },
+    outcome: { type: String },
+  },
+  { timestamps: false }
+);
+// HELP-01: one open request per student per rule
+helpRequestSchema.index({ studentId: 1, rule: 1 }, { unique: true, partialFilterExpression: { status: "OPEN" } });
+
+/** G7 / G12: when the daily checks last ran and what they did. */
+export interface JobRunDocument {
+  id: string;
+  lastRunAt: string;
+  summary: Record<string, number>;
+}
+const jobRunSchema = new Schema<JobRunDocument>(
+  { id: { type: String, required: true, unique: true }, lastRunAt: { type: String, required: true }, summary: { type: Schema.Types.Mixed } },
+  { timestamps: false }
+);
+
+export const HourEntryModel = mongoose.models.HourEntry || mongoose.model<HourEntry>("HourEntry", hourEntrySchema);
+export const WeeklyCheckinModel = mongoose.models.WeeklyCheckin || mongoose.model<WeeklyCheckin>("WeeklyCheckin", weeklyCheckinSchema);
+export const SafeguardOverrideModel = mongoose.models.SafeguardOverride || mongoose.model<SafeguardOverride>("SafeguardOverride", safeguardOverrideSchema);
+export const SlaEventModel = mongoose.models.SlaEvent || mongoose.model<SlaEventDocument>("SlaEvent", slaEventSchema);
+export const HelpRequestModel = mongoose.models.HelpRequest || mongoose.model<HelpRequest>("HelpRequest", helpRequestSchema);
+export const JobRunModel = mongoose.models.JobRun || mongoose.model<JobRunDocument>("JobRun", jobRunSchema);

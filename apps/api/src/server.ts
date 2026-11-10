@@ -3,6 +3,7 @@ import { createApp } from "./app.js";
 import { connectDB } from "./config/db.js";
 import { demoModeAllowed, productionConfigProblems } from "./config/runtime.js";
 import { seedDatabaseIfEmpty } from "./utils/seed.js";
+import { scheduleDailyChecks } from "./services/daily-checks.service.js";
 
 dotenv.config();
 
@@ -37,6 +38,8 @@ async function startServer() {
 
   app.listen(port, () => {
     console.log(`EduRev API is listening on http://localhost:${port}`);
+    // Phase 4 (G12): reminders, missed check-ins, help escalation and stale tier suggestions, every hour
+    scheduleDailyChecks();
   });
 }
 

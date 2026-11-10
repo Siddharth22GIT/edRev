@@ -1,11 +1,21 @@
 import type { Request, Response } from "express";
 import {
   checkSafeguardsService,
+  createBlackoutService,
+  createOverrideService,
+  deleteBlackoutService,
   getBlackoutPeriodsService,
   getHourLogService,
   getSafeguardsService,
+  lastDailyRunService,
+  listOverridesService,
   overrideHourCapService,
+  revokeOverrideService,
+  updateComplianceService,
 } from "../services/safeguard.service.js";
+import { addManualHoursService } from "../services/hours.service.js";
+import { getSafeguardLimitsService, updateSafeguardLimitsService } from "../services/limits.service.js";
+import { handle } from "./phase4.helpers.js";
 import { can } from "@edurev/types";
 import { ownStudentId } from "../middleware/auth.middleware.js";
 
@@ -17,8 +27,9 @@ const getParam = (param: string | string[] | undefined): string =>
 
 export async function getSafeguardsHandler(_req: Request, res: Response): Promise<void> {
   try {
+    // G7: worked out now from every active student's record, plus when the daily checks last ran
     const data = await getSafeguardsService();
-    res.json({ data });
+    res.json({ data, lastDailyRun: await lastDailyRunService() });
   } catch (err: any) {
     errorResponse(res, err.message || "Failed to fetch safeguards.", 500);
   }
@@ -27,7 +38,9 @@ export async function getSafeguardsHandler(_req: Request, res: Response): Promis
 export async function checkSafeguardsHandler(req: Request, res: Response): Promise<void> {
   try {
     const studentId = getParam(req.params.studentId);
-    const data = await checkSafeguardsService(studentId);
+    // G6: with ?opportunityId= the check includes that work (tier, its weekly hours, exams inside its dates)
+    const opportunityId = typeof req.query.opportunityId === "string" && req.query.opportunityId ? req.query.opportunityId : undefined;
+    const data = await checkSafeguardsService(studentId, opportunityId);
     res.json({ data });
   } catch (err: any) {
     errorResponse(res, err.message || "Error checking safeguards.", 500);
@@ -75,8 +88,8 @@ export async function postHourLogHandler(req: Request, res: Response): Promise<v
     }
   }
 
-  // S12: validate instead of echoing whatever was sent. Storing hours needs weekly periods, which arrive with
-  // the safeguards engine (Phase 4, G2); until then the note says plainly that nothing was saved.
+  // S12: validate instead of echoing whatever was sent. G2 (Phase 4): the hours are now stored as a typed-in
+  // entry for that day; the response keeps its shape and adds the saved `entry`.
   const hours = Number(req.body?.hours);
   if (!Number.isFinite(hours) || hours <= 0 || hours > 24) {
     errorResponse(res, "hours must be a number greater than 0 and at most 24.");
@@ -84,11 +97,18 @@ export async function postHourLogHandler(req: Request, res: Response): Promise<v
   }
   const date = typeof req.body?.date === "string" ? req.body.date.slice(0, 10) : undefined;
   const note = typeof req.body?.note === "string" ? req.body.note.slice(0, 300) : undefined;
+  const opportunityId = typeof req.body?.opportunityId === "string" && req.body.opportunityId ? req.body.opportunityId : undefined;
 
-  res.status(201).json({
-    data: { studentId, hours, ...(date ? { date } : {}), ...(note ? { note } : {}) },
-    note: "Hour log received but not stored yet: weekly hour tracking arrives with the safeguards engine.",
-  });
+  try {
+    const entry = await addManualHoursService({ studentId: studentId!, hours, date, note, opportunityId, createdBy: user.name });
+    res.status(201).json({
+      data: { studentId, hours, ...(date ? { date } : {}), ...(note ? { note } : {}) },
+      entry,
+      note: `Saved ${hours} h for ${entry.date}. It counts toward that week's check-in.`,
+    });
+  } catch (err: any) {
+    errorResponse(res, err.message || "Couldn't save the hours.", err.statusCode || 500);
+  }
 }
 
 export async function getBlackoutPeriodsHandler(_req: Request, res: Response): Promise<void> {
@@ -126,3 +146,52 @@ export async function overrideHourCapHandler(req: Request, res: Response): Promi
     errorResponse(res, err.message || "Unable to override hour cap.", status);
   }
 }
+
+/* ---------------- Phase 4: limits, overrides, blackouts, compliance (docs/modules/safeguards.md §5) ---------------- */
+
+/** GET /safeguards/limits: everyone signed in may read the limits (they explain the rules). */
+export const getLimitsHandler = handle(async (_req, res) => {
+  res.json({ data: await getSafeguardLimitsService() });
+}, "Failed to load the safeguard limits.");
+
+/** PUT /safeguards/limits (SETTINGS_MANAGE): validated ranges; nonsense limits are refused (G1). */
+export const updateLimitsHandler = handle(async (req, res) => {
+  res.json({ data: await updateSafeguardLimitsService(req.body ?? {}), message: "Safeguard limits saved." });
+}, "Failed to save the safeguard limits.");
+
+export const listOverridesHandler = handle(async (req, res) => {
+  res.json({ data: await listOverridesService(getParam(req.params.studentId)) });
+}, "Failed to load overrides.");
+
+/** POST /safeguards/overrides { studentId, rule, reason, days } (SAFEGUARD_OVERRIDE). Hard rules refuse with 400. */
+export const createOverrideHandler = handle(async (req, res) => {
+  const user = req.user!;
+  const { studentId, rule, reason, days } = req.body ?? {};
+  if (typeof studentId !== "string" || !studentId) {
+    res.status(400).json({ message: "studentId is required." });
+    return;
+  }
+  const data = await createOverrideService({ studentId, rule, reason, days }, `${user.name} (${user.role})`);
+  res.status(201).json({ data, message: `Override recorded until ${data.expiresAt.slice(0, 10)}.` });
+}, "Failed to record the override.");
+
+export const revokeOverrideHandler = handle(async (req, res) => {
+  const user = req.user!;
+  res.json({ data: await revokeOverrideService(getParam(req.params.id), `${user.name} (${user.role})`), message: "Override ended." });
+}, "Failed to end the override.");
+
+export const createBlackoutHandler = handle(async (req, res) => {
+  res.status(201).json({ data: await createBlackoutService(req.body ?? {}, req.user!.name), message: "Exam blackout added." });
+}, "Failed to add the blackout.");
+
+export const deleteBlackoutHandler = handle(async (req, res) => {
+  await deleteBlackoutService(getParam(req.params.id));
+  res.json({ data: { id: getParam(req.params.id) }, message: "Exam blackout removed." });
+}, "Failed to remove the blackout.");
+
+/** PUT /academic/:studentId/compliance { attendancePercent?, activeBacklogs?, complianceStatus?, note? } (ACADEMIC_RECORD_MANAGE) */
+export const updateComplianceHandler = handle(async (req, res) => {
+  const { attendancePercent, activeBacklogs, complianceStatus, note } = req.body ?? {};
+  const data = await updateComplianceService(getParam(req.params.studentId), { attendancePercent, activeBacklogs, complianceStatus, note }, req.user!.name);
+  res.json({ data, message: "Attendance and compliance saved." });
+}, "Failed to save attendance and compliance.");

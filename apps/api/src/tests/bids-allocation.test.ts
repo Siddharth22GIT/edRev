@@ -15,6 +15,7 @@ import { isDbConnected } from "../config/db.js";
 import { AcademicSnapshotModel, AllocationModel, BidModel, EarningsEntryModel, HourLogModel, OpportunityModel, StudentModel } from "../models/index.js";
 import { deleteConversationsBySubjectPrefix } from "../services/messages.service.js";
 import { deleteTierSuggestionsForStudent } from "../services/onboarding.service.js";
+import { deleteSlaEventsFor } from "../services/sla.service.js";
 import { dateInTimeZone, deadlineInstant, endOfDayInTimeZone } from "../utils/time.js";
 import { createToken, makeClient, startTestServer, stopTestServer, type TestUser } from "./helpers.js";
 
@@ -80,6 +81,8 @@ describe("Bids & Allocation Suite (Phase 2)", () => {
     await deleteConversationsBySubjectPrefix(`Allocation update: ${PREFIX}`);
     // A confirmed delivery may create a tier suggestion for a test student
     for (const id of STUDENT_IDS) await deleteTierSuggestionsForStudent(id);
+    // Phase 4: allocation and reassignment add entries to the project timeline
+    await deleteSlaEventsFor(OPP_IDS);
     if (isDbConnected()) {
       await StudentModel.deleteMany({ id: { $in: STUDENT_IDS } });
       await AcademicSnapshotModel.deleteMany({ studentId: { $in: STUDENT_IDS } });

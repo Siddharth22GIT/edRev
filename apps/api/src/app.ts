@@ -14,6 +14,8 @@ import studentRoutes from "./routes/student.routes.js";
 import messagesRoutes from "./routes/messages.routes.js";
 import signupRequestRoutes from "./routes/signup-request.routes.js";
 import tierSuggestionRoutes from "./routes/tier-suggestion.routes.js";
+import slaRoutes from "./routes/sla.routes.js";
+import helpRoutes from "./routes/help.routes.js";
 
 export function createApp() {
   const app = express();
@@ -37,6 +39,7 @@ export function createApp() {
   const uploadJson = express.json({ limit: "15mb" }); // ≤ 10 MB file + base64 overhead
   app.post("/api/opportunities/:id/bids", uploadJson);
   app.post("/api/earnings", uploadJson);
+  app.post("/api/opportunities/:id/submissions", uploadJson); // Phase 4 (F2b): delivery PDF ≤ 10 MB
   app.put("/api/students/:id/photo", express.json({ limit: "1mb" })); // photos are ≤ 512 KB
   app.use(express.json({ limit: "100kb" }));
   app.use(express.urlencoded({ extended: true, limit: "100kb" }));
@@ -57,6 +60,8 @@ export function createApp() {
   app.use("/api/tier-suggestions", tierSuggestionRoutes);
   app.use("/api/signup-requests", signupRequestRoutes);
   app.use("/api/messages", messagesRoutes);
+  app.use("/api/sla", slaRoutes);
+  app.use("/api/help-requests", helpRoutes);
   app.use("/api", earningsRoutes);
   app.use("/api", safeguardRoutes);
   app.use("/api", analyticsRoutes);

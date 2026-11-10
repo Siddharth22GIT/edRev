@@ -61,6 +61,22 @@ export const PERMISSIONS = {
   ANALYTICS_VIEW: STAFF_ROLES,
   /** Create a proposal. Students are always recorded as the author. */
   PROPOSAL_CREATE: ALL_ROLES,
+
+  /* ---- Phase 4: safeguards, hours and SLA (docs/modules/safeguards.md, docs/modules/sla-and-delivery.md) ---- */
+  /** Work on one's own allocated project: kick off, milestones, submit, extension request, hand back, timer, check-in. */
+  PROJECT_WORK: ["STUDENT"],
+  /** G6: a blocked student asks for help with a safeguard rule (opens a private thread with the right staff). */
+  HELP_REQUEST: ["STUDENT"],
+  /** G5: override a soft safeguard rule for one student, with a reason and an expiry. Hard rules can't be overridden. */
+  SAFEGUARD_OVERRIDE: ["FACULTY_DIRECTOR", "CELL_COORDINATOR", "ADMINISTRATOR"],
+  /** G4: add or remove exam blackouts. */
+  BLACKOUT_MANAGE: ["FACULTY_DIRECTOR", "ADMINISTRATOR"],
+  /** G10: decide extensions, pause/resume or cancel allocated work, and allow a third revision. */
+  SLA_MANAGE: ["CELL_COORDINATOR", "ADMINISTRATOR"],
+  /** G12: the SLA board and "At-risk projects" card. */
+  SLA_BOARD_VIEW: ["BID_DESK_ANALYST", "GUILD_LEAD", "CELL_COORDINATOR", "FACULTY_DIRECTOR", "DEAN", "ADMINISTRATOR"],
+  /** Answer and resolve students' "Request help" questions about a block. */
+  HELP_RESOLVE: ["GUILD_LEAD", "CELL_COORDINATOR", "FACULTY_DIRECTOR", "ADMINISTRATOR"],
 } satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;
