@@ -1,8 +1,23 @@
-# Running notes: where we left off (8 Nov 2026)
+# Running notes: where we left off (10 Nov 2026)
 
-**Next:** Phase 4 (safeguards + SLA engine). **Design discussion started 8 Nov; no code yet. The user paused here on purpose.** Continue the discussion below before writing any code. Task list: `CLAUDE.md` → "Next session".
+**Next:** Phase 5 (polish) in `docs/improvement-plan.md`. Phase 4 is built on branch `phase-4-safeguards-sla` (2 commits, not merged into `main`, not pushed). `main` now includes Phase 3 (fast-forwarded locally, not pushed).
 
-## Phase 4 design discussion (8 Nov 2026), resume here
+## Phase 4 (safeguards, weekly hours, SLA): done 10 Nov 2026
+
+The user asked to go with every recommended default, so **D1–D5 are agreed**: 10 h term / 20 h break cap (outside paid work counts via the check-in), 75% attendance, projects at once T1 1 · T2 1 · T3 2 · T4 3, 1 extension ≤ 30% before the deadline, 2 overdue in 60 days → 14-day cool-down. All are editable by an Administrator on Institutional settings.
+
+Docs to study: [`docs/modules/safeguards.md`](docs/modules/safeguards.md) (rules, hours, Request help) and [`docs/modules/sla-and-delivery.md`](docs/modules/sla-and-delivery.md) (lifecycle, SLA states, reminders). Edge cases SAFE-*, HOURS-*, HELP-*, SLA-* in `docs/edge-cases.md`.
+
+- `f62d095` API: safeguards engine (9 rules, hard/soft, overrides), limits, blackouts per programme, attendance/compliance, weekly hours (POST /hours now stores; timer; Monday check-in), SLA lifecycle (kick-off, milestones, submit/accept/revision, extensions, pause, cancel, hand-back, timeline), SLA board, reminders never sent twice, Request help with escalation, skill match, hourly daily checks (`DAILY_CHECKS=off` turns them off).
+- `b1acfa5` Web: Safeguards page on live data, "Before you bid" card, project panel, My week + check-in, At-risk projects and Help requests cards, waiting times, staff safeguards panel on student records, limits editor. Fixes: opportunity page always refreshes from the API; dashboard grid no longer overflows on phones.
+- 200 API tests pass in MongoDB and demo mode (1 / 12 skipped, as before). Typecheck and web build OK. Screenshots (demo data mode): student dashboard, safeguards, project, eligibility, phone; coordinator dashboard and project; faculty safeguards and student record; admin limits.
+- Loose ends from the old list: `joinedAt` timezone was already fixed (E9); Rohan's stale tier suggestion is withdrawn by the daily checks; README was done 1 Nov.
+
+**Heads-up for your real data:** the hour cap is now **10 h in term** (before, the old hour log showed 20 h). Students whose planned projects exceed 10 h/week will be blocked for *new* work until a project finishes or a coordinator overrides "Weekly hours". Add break periods on Institutional settings to use the 20 h cap. Existing allocations are never cancelled. Checked on your MongoDB data (10 Nov, read-only): **Rohan (stu-202, TIER 4)** has 38 h/week planned and a cool-down from late deliveries, so he's blocked for new work; Amara (stu-203) is blocked by CGPA as before; your own account (stu-12411347) by "CGPA not recorded"; Maya (stu-201) is clear.
+
+**Still yours to decide:** your own account `shivam.thakur2024@lpu.in` is TIER 4 with 0% training and no official CGPA (likely set while testing). Only an Administrator can change it.
+
+## Phase 4 design discussion (8 Nov 2026), kept for reference (now built)
 
 ### Agreed
 - **D10: weekly hours** (also in `docs/improvement-plan.md` section 0). "A student only gets work that fits inside their weekly hours."
